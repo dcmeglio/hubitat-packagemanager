@@ -118,7 +118,10 @@ def prefInstallChoices() {
 		}
 	} 
 	else { 
-		return dynamicPage(name: "prefInstallChoices", title: "Choose the components to install", nextPage: "prefInstallVerify", install: false, uninstall: false) {
+		def title = "Choose the components to install"
+		if (apps.size() == 0 && drivers.size() == 0)
+			title = "Ready to install"
+		return dynamicPage(name: "prefInstallChoices", title: title, nextPage: "prefInstallVerify", install: false, uninstall: false) {
 			section {
 				if (apps.size() > 0 || drivers.size() > 0)
 					paragraph "You are about to install <b>${manifest.packageName}</b>. This package includes some optional components. Please choose which ones you would like to include below. Click Next when you are ready."
@@ -145,12 +148,38 @@ def prefInstall() {
 	login()
 	def manifest = state.manifests[pkgInstall]
 	
+	// Download all files first to reduce the chances of a network error
+	def appFiles = [:]
+	def driverFiles = [:]
+	
 	def requiredApps = getRequiredAppsFromManifest(manifest)
 	def requiredDrivers = getRequiredDriversFromManifest(manifest)
-
+	
 	for (requiredApp in requiredApps) {
 		def fileContents = downloadFile(requiredApp.value.location)
-		requiredApp.value.heID = installApp(fileContents)
+		appFiles[requiredApp.value.location] = fileContents
+	}
+	for (appToInstall in appsToInstall) {
+		def matchedApp = manifest.apps.find { it.id == appToInstall}
+		if (matchedApp != null) {
+			def fileContents = downloadFile(matchedApp.location)
+			appFiles[matchedApp.location] = fileContents
+		}
+	}
+	for (requiredDriver in requiredDrivers) {
+		def fileContents = downloadFile(requiredDriver.value.location)
+		driverFiles[requiredDriver.value.location] = fileContents
+	}
+	for (driverToInstall in driversToInstall) {
+		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
+		if (matchedDriver != null) {
+			def fileContents = downloadFile(matchedDriver.location)
+			driverFiles[matchedDriver.location] = fileContents
+		}
+	}
+
+	for (requiredApp in requiredApps) {
+		requiredApp.value.heID = installApp(appFiles[requiredApp.value.location])
 		if (requiredApp.value.oauth)
 			enableOAuth(requiredApp.value.heID)
 	}
@@ -158,23 +187,20 @@ def prefInstall() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
-			def fileContents = downloadFile(matchedApp.location)
-			matchedApp.heID = installApp(fileContents)
+			matchedApp.heID = installApp(appFiles[matchedApp.location] = fileContents)
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
 	}
 	
 	for (requiredDriver in requiredDrivers) {
-		def fileContents = downloadFile(requiredDriver.value.location)
-		requiredDriver.value.heID = installDriver(fileContents)
+		requiredDriver.value.heID = installDriver(driverFiles[requiredDriver.value.location])
 	}
 	
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
-			def fileContents = downloadFile(matchedDriver.location)
-			matchedDriver.heID = installDriver(fileContents)
+			matchedDriver.heID = installDriver(driverFiles[matchedDriver.location])
 		}
 	}
 	
@@ -306,11 +332,26 @@ def prefVerifyPackageChanges() {
 }
 
 def prefMakePackageChanges() {
+	// Download all files first to reduce the chances of a network error
+	def appFiles = [:]
+	def driverFiles = [:]
 	def manifest = getInstalledManifest(pkgModify)
+	
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
 		def fileContents = downloadFile(app.location)
-		app.heID = installApp(fileContents)
+		appFiles[app.location] = fileContents
+	}
+	for (driverToInstall in state.driversToInstall) {
+		def driver = getDriverById(manifest, driverToInstall)
+		def fileContents = downloadFile(driver.location)
+		driverFiles[driver.location] = fileContents
+	}
+	
+	
+	for (appToInstall in state.appsToInstall) {
+		def app = getAppById(manifest, appToInstall)
+		app.heID = installApp(appFiles[app.location])
 		if (app.oauth)
 				enableOAuth(app.heID)
 	}
@@ -322,8 +363,7 @@ def prefMakePackageChanges() {
 	
 	for (driverToInstall in state.driversToInstall) {
 		def driver = getDriverById(manifest, driverToInstall)
-		def fileContents = downloadFile(driver.location)
-		driver.heID = installDriver(fileContents)
+		driver.heID = installDriver(driverFiles[driver.location])
 		
 	}
 	for (driverToUninstall in state.driversToUninstall) {
@@ -436,22 +476,53 @@ def prefPkgVerifyUpdates() {
 }
 
 def prefPkgUpdatesComplete() {
+	// Download all files first to reduce the chances of a network error
+	def downloadedManifests = [:]
+	def appFiles = [:]
+	def driverFiles = [:]
 	for (pkg in pkgsToUpdate) {
 		def manifest = getManifestFile(pkg)
+		def installedManifest = state.manifests[pkg]
+		
+		downloadedManifests[pkg] = manifest
+		if (manifest) {
+			for (app in manifest.apps) {
+				if (isAppInstalled(installedManifest,app.id)) {
+					def fileContents = downloadFile(app.location)
+					appFiles[app.location] = fileContents					
+				}
+				else if (app.required) {
+					def fileContents = downloadFile(app.location)
+					appFiles[app.location] = fileContents
+				}
+			}
+			for (driver in manifest.drivers) {
+				if (isDriverInstalled(installedManifest,driver.id)) {
+					def fileContents = downloadFile(driver.location)
+					driverFiles[driver.location] = fileContents
+				}
+				else if (driver.required) {
+					def fileContents = downloadFile(driver.location)
+					driverFiles[driver.location] = fileContents
+				}
+			}
+		}
+	}
+	
+	for (pkg in pkgsToUpdate) {
+		def manifest = downloadedManifests[pkg]
 		def installedManifest = state.manifests[pkg]
 		
 		if (manifest) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
-					def fileContents = downloadFile(app.location)
 					app.heID = getAppById(installedManifest, app.id).heID
-					upgradeApp(app.heID, fileContents)
+					upgradeApp(app.heID, appFiles[app.location])
 					if (app.oauth)
 						enableOAuth(app.heID)					
 				}
 				else if (app.required) {
-					def fileContents = downloadFile(app.location)
-					app.heID = installApp(fileContents)
+					app.heID = installApp(appFiles[app.location])
 					if (app.oauth)
 						enableOAuth(app.heID)
 				}
@@ -459,13 +530,11 @@ def prefPkgUpdatesComplete() {
 			
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
-					def fileContents = downloadFile(driver.location)
 					driver.heID = getDriverById(installedManifest, driver.id).heID
-					upgradeDriver(driver.heID, fileContents)	
+					upgradeDriver(driver.heID, driverFiles[driver.location])	
 				}
 				else if (driver.required) {
-					def fileContents = downloadFile(driver.location)
-					driver.heID = installDriver(fileContents)
+					driver.heID = installDriver(driverFiles[driver.location])
 				}
 			}
 			state.manifests[pkg] = manifest
