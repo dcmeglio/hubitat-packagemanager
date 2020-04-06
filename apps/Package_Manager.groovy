@@ -24,11 +24,14 @@ preferences {
     page(name: "prefMain")
 	page(name: "prefOptions")
     page(name: "prefPkgInstall")
+	page(name: "prefPkgModify")
     page(name: "prefPkgUpdate")
 	page(name: "prefPkgUninstall")
     page(name: "prefInstallChoices")
 	page(name: "prefInstallVerify")
 	page(name: "prefInstall")
+	page(name: "prefPkgModifyChoosePackage")
+	page(name: "prefPkgModifyChoices")
 	page(name: "prefPkgUnistallConfirm")
 	page(name: "prefPkgUnistallComplete")
 
@@ -66,21 +69,22 @@ def prefMain() {
 	}
 }
 def prefOptions() {
-	
 	return dynamicPage(name: "prefMain", title: "Package Options", install: true, uninstall: true) {
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package")
+			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package")
 			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall a package")
             href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates")
 		}
 	}
 }
 
+// Install a package pathway
 def prefPkgInstall() {
 	return dynamicPage(name: "prefPkgInstall", title: "Install a Package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
-			input "pkgInstall", "text", title: "Enter the URL of a package manifest you wish to install"
+			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install"
 		}
 	}
 }
@@ -90,23 +94,37 @@ def prefInstallChoices() {
 		state.manifests = [:]
     def manifest = getManifestFile(pkgInstall)
 	
+	if (manifest == null) {
+		return dynamicPage(name: "prefInstallChoices", title: "Invalid package file", install: true, uninstall: true) {
+			section {
+				paragraph "${pkgInstall} does not appear to be a valid Hubitat Package."
+			}
+		}
+	}
+	
 	state.manifests[pkgInstall] = manifest
 	
-	def apps = getAppsForInput(manifest)
-	def drivers = getDriversForInput(manifest)
+	def apps = getOptionalAppsFromManifest(manifest)
+	def drivers = getOptionalDriversFromManifest(manifest)
 	
 	if (!verifyHEVersion(manifest.minimumHEVersion)) {
 		return dynamicPage(name: "prefInstallChoices", title: "Unsupported Hubitat Firmware", install: true, uninstall: true) {
 			section {
-				paragraph "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing"
+				paragraph "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing."
 			}
 		}
 	} 
 	else { 
 		return dynamicPage(name: "prefInstallChoices", title: "Choose the components to install", nextPage: "prefInstallVerify", install: false, uninstall: false) {
 			section {
-				input "appsToInstall", "enum", title: "Select the apps to install", options: apps, hideWhenEmpty: true, multiple: true
-				input "driversToInstall", "enum", title: "Select the drivers to install", options: drivers, hideWhenEmpty: true, multiple: true
+				if (apps.size() > 0 || drivers.size() > 0)
+					paragraph "You are about to install <b>${manifest.packageName}</b>. This package includes some optional components. Please choose which ones you would like to include below. Click Next when you are ready."
+				else
+					paragraph "You are about to install <b>${manifest.packageName}</b>. Click next when you are ready."
+				if (apps.size() > 0)
+					input "appsToInstall", "enum", title: "Select the apps to install", options: apps, hideWhenEmpty: true, multiple: true
+				if (drivers.size() > 0)
+					input "driversToInstall", "enum", title: "Select the drivers to install", options: drivers, hideWhenEmpty: true, multiple: true
 			}
 		}
 	}
@@ -124,24 +142,125 @@ def prefInstall() {
 	login()
 	def manifest = state.manifests[pkgInstall]
 	
+	def requiredApps = getRequiredAppsFromManifest(manifest)
+	def requiredDrivers = getRequiredDriversFromManifest(manifest)
+
+	for (requiredApp in requiredApps) {
+		def fileContents = downloadFile(requiredApp.location)
+		requiredApp.heID = installApp(fileContents)
+	}
 	
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		def fileContents = downloadFile(matchedApp.location)
 		matchedApp.heID = installApp(fileContents)
 	}
+	
+	for (requiredDriver in requiredDrivers) {
+		def fileContents = downloadFile(requiredDriver.location)
+		requiredDriver.heID = installDriver(fileContents)
+	}
+	
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		def fileContents = downloadFile(matchedDriver.location)
 		matchedDriver.heID = installDriver(fileContents)
 	}
-	log.debug manifest
+	
     return dynamicPage(name: "prefInstall", title: "Ready to install", install: true, uninstall: true) {
 		section {
 			paragraph "Installation successful, click done."
 		}
 	}
 }
+
+// Modify a package pathway
+def prefPkgModify() {
+	def pkgsToList = getInstalledPackages()
+	return dynamicPage(name: "prefPkgModify", title: "Choose the package to modify", nextPage: "prefPkgModifyChoosePackage", install: false, uninstall: false) {
+		section {
+			input "pkgModify", "enum", options: pkgsToList, required: true
+		}
+	}
+}
+
+def prefPkgModifyChoosePackage() {
+	return dynamicPage(name: "prefPkgModifyChoosePackage", title: "Which package would you like to modify?", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
+		section {
+			input "pkgModify", "enum", options: pkgsToList, required: true
+		}
+	}
+}
+
+def prefPkgModifyChoices() {
+	def manifest = getInstalledManifest(pkgModify)
+	
+	def optionalApps = getOptionalAppsFromManifest(manifest)
+	def optionalDrivers = getOptionalDriversFromManifest(manifest)
+	if (optionalApps?.size() > 0 || optionalDrivers?.size() > 0) {
+		return dynamicPage(name: "prefPkgModifyChoices", title: "What would you like to modify?", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
+			section {
+				input "pkgModify", "enum", options: pkgsToList, required: true
+			}
+		}
+	}
+	else {
+		return dynamicPage(name: "prefPkgModifyChoices", title: "Nothing to modify", install: true, uninstall: true) {
+			section {
+				paragraph "This package does not have any optional components that you can modify."
+			}
+		}
+	}
+}
+
+
+// Uninstall a package pathway
+def prefPkgUninstall() {
+	def pkgsToList = getInstalledPackages()
+
+	return dynamicPage(name: "prefPkgUninstall", title: "Choose the package to uninstall", nextPage: "prefPkgUnistallConfirm", install: false, uninstall: false) {
+		section {
+			input "pkgUninstall", "enum", options: pkgsToList, required: true
+		}
+	}
+	
+
+}
+
+// Update packages pathway
+def prefPkgUpdate() {
+	def needsUpdate = [:]
+	def needsUpdateStr = "<ul>"
+	for (pkg in state.manifests) {
+		def manifest = getManifestFile(pkg.key)
+		
+		
+		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
+			needsUpdateStr += "<li>${manifest.packageName} - (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})</li>"
+			needsUpdate << manifest
+		}
+	}
+	
+	return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgUnistallConfirm", install: false, uninstall: false) {
+		section {
+			paragraph needsUpdateStr
+		}
+	}
+}
+
+def getInstalledPackages() {
+	def pkgsToList = [:]
+	for (pkg in state.manifests) 
+		pkgsToList[pkg.key] = pkg.value.packageName
+	return pkgsToList
+}
+
+
+
+
+
+
+
 
 def downloadFile(file) {
 	def params = [
@@ -235,34 +354,73 @@ def uninstallDriver(id) {
 	}
 }
 
-def getAppsForInput(manifest) {
+def getOptionalAppsFromManifest(manifest) {
 	def appsList = [:]
 	for (app in manifest.apps) {
-        appsList << ["${app.id}":app.name]
+		if (app.required == false)
+			appsList << ["${app.id}":app.name]
 	}
 	return appsList
 }
 
-def getDriversForInput(manifest) {
+def getOptionalDriversFromManifest(manifest) {
 	def driversList = [:]
 	for (driver in manifest.drivers) {
-        driversList << ["${driver.id}":driver.name]
+		if (driver.required == false)
+			driversList << ["${driver.id}":driver.name]
 	}
 	return driversList
 }
 
+def getRequiredAppsFromManifest(manifest) {
+	def appsList = [:]
+	for (app in manifest.apps) {
+		if (app.required == true)
+			appsList << ["${app.id}":app.name]
+	}
+	return appsList
+}
+
+def getRequiredDriversFromManifest(manifest) {
+	def driversList = [:]
+	for (driver in manifest.drivers) {
+		if (driver.required == true)
+			driversList << ["${driver.id}":driver.name]
+	}
+	return driversList
+}
+
+def getInstalledManifest(pkgId) {
+	for (pkg in state.manifests) {
+		igf (pkg.key == pkgId)
+			return pkg.value
+	}
+	return null
+}
+
 def getManifestFile(uri) {
-    def params = [
-        uri: uri,
-        requestContentType: "application/json",
-        contentType: "application/json",
-        textParser: true
-    ]
-	def result
-    httpGet(params) { resp ->
-        result = new groovy.json.JsonSlurper().parseText(resp.data.text)
-    }
-	return result
+	try
+	{
+		def result
+		def params = [
+			uri: uri,
+			requestContentType: "application/json",
+			contentType: "application/json",
+			textParser: true
+		]
+		
+		httpGet(params) { resp ->
+			result = new groovy.json.JsonSlurper().parseText(resp.data.text)
+		}
+		if (result.packageName == null || result.packageId == null)
+			return null
+		return result
+	}
+	catch (e)
+	{
+		return null
+	}
+	
 }
 
 def verifyHEVersion(versionStr) {
@@ -302,38 +460,6 @@ def newVersionAvailable(versionStr, installedVersionStr) {
 	return false
 }
 
-def prefPkgUpdate() {
-	def needsUpdate = [:]
-	def needsUpdateStr = "<ul>"
-	for (pkg in state.manifests) {
-		def manifest = getManifestFile(pkg.key)
-		
-		
-		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			needsUpdateStr += "<li>${manifest.packageName} - (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})</li>"
-			needsUpdate << manifest
-		}
-	}
-	
-	return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgUnistallConfirm", install: false, uninstall: false) {
-		section {
-			paragraph needsUpdateStr
-		}
-	}
-}
-
-def prefPkgUninstall() {
-	def pkgsToList = [:]
-	for (pkg in state.manifests) {
-		log.debug pkg
-		pkgsToList[pkg.key] = pkg.value.packageName
-	}
-	return dynamicPage(name: "prefPkgUninstall", title: "Choose the package to uninstall", nextPage: "prefPkgUnistallConfirm", install: false, uninstall: false) {
-		section {
-			input "pkgUninstall", "enum", options: pkgsToList, required: true
-		}
-	}
-}
 
 
 def prefPkgUnistallConfirm() {
