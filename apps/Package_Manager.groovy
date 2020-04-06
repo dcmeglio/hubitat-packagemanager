@@ -37,7 +37,6 @@ preferences {
 	page(name: "prefPkgUninstallComplete")
 	page(name: "prefPkgVerifyUpdates")
 	page(name: "prefPkgUpdatesComplete")
-
 }
 
 def installed() {
@@ -59,6 +58,7 @@ def uninstalled() {
 }
 
 def prefMain() {
+	clearStateSettings()
     return dynamicPage(name: "prefMain", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: false, uninstall: false) {
 		section {
 			paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
@@ -471,6 +471,17 @@ def prefPkgUpdatesComplete() {
 	}
 }
 
+def clearStateSettings() {
+	app.removeSetting("pkgInstall")
+	app.removeSetting("appsToInstall")
+	app.removeSetting("driversToInstall")
+	app.removeSetting("pkgModify")
+	app.removeSetting("appsToModify")
+	app.removeSetting("driversToModify")
+	app.removeSetting("pkgUninstall")
+	app.removeSetting("pkgsToUpdate")
+}
+
 def getInstalledPackages() {
 	def pkgsToList = [:]
 	for (pkg in state.manifests) 
@@ -564,7 +575,8 @@ def downloadFile(file) {
         uri: file,
         requestContentType: "application/json",
         contentType: "application/json",
-        textParser: true
+        textParser: true,
+		timeout: 300
     ]
 	def result
     httpGet(params) { resp ->
@@ -586,7 +598,8 @@ def installApp(appCode) {
 			version: "",
 			create: "",
 			source: appCode
-		]
+		],
+		timeout: 300
 	]
 	def result
 	httpPost(params) { resp ->
@@ -689,7 +702,8 @@ def uninstallApp(id) {
 			body: [
 				id: id,
 				"_action_delete": "Delete"
-			]
+			],
+			timeout: 300
 		]
 		httpPost(params) { resp ->
 		}
@@ -711,7 +725,8 @@ def installDriver(driverCode) {
 			version: "",
 			create: "",
 			source: driverCode
-		]
+		],
+		timeout: 300
 	]
 	def result
 	httpPost(params) { resp ->
@@ -731,7 +746,8 @@ def uninstallDriver(id) {
 			body: [
 				id: id,
 				"_action_delete": "Delete"
-			]
+			],
+			timeout: 300
 		]
 		httpPost(params) { resp ->
 		}
