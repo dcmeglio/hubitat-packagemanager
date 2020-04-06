@@ -300,7 +300,6 @@ def prefVerifyPackageChanges() {
 	}
 }
 
-
 def prefMakePackageChanges() {
 	def manifest = getInstalledManifest(pkgModify)
 	for (appToInstall in state.appsToInstall) {
@@ -342,8 +341,49 @@ def prefPkgUninstall() {
 			input "pkgUninstall", "enum", options: pkgsToList, required: true
 		}
 	}
-	
+}
 
+def prefPkgUnistallConfirm() {
+	return dynamicPage(name: "prefPkgUnistallConfirm", title: "Choose the package to uninstall", nextPage: "prefPkgUnistallComplete", install: false, uninstall: false) {
+		section {
+			paragraph "The following apps and drivers will be removed:"
+			
+			def str = "<ul>"
+			def pkg = state.manifests[pkgUninstall]
+			for (app in pkg.apps) {
+				if (app.heID != null)
+					str += "<li>" + app.name + "</li>"
+			}
+			
+			for (driver in pkg.drivers) {
+				if (driver.heID != null)
+					str += "<li>" + driver.name + "</li>"
+			}
+			str += "</ul>"
+			paragraph str
+		}
+	}
+}
+
+def prefPkgUnistallComplete() {
+	def pkg = state.manifests[pkgUninstall]
+			
+	for (app in pkg.apps) {
+		if (app.heID != null)
+			uninstallApp(app.heID)
+	}
+	
+	for (driver in pkg.drivers) {
+		if (driver.heID != null)
+			uninstallDriver(driver.heID)
+	}
+	state.manifests.remove(pkgUninstall)
+	
+	return dynamicPage(name: "prefPkgUnistallConfirm", title: "Uninstall complete", install: true, uninstall: true) {
+		section {
+			paragraph "Package successfully removed."
+		}
+	}
 }
 
 // Update packages pathway
@@ -660,48 +700,7 @@ def newVersionAvailable(versionStr, installedVersionStr) {
 
 
 
-def prefPkgUnistallConfirm() {
-	return dynamicPage(name: "prefPkgUnistallConfirm", title: "Choose the package to uninstall", nextPage: "prefPkgUnistallComplete", install: false, uninstall: false) {
-		section {
-			paragraph "The following apps and drivers will be removed:"
-			
-			def str = "<ul>"
-			def pkg = state.manifests[pkgUninstall]
-			for (app in pkg.apps) {
-				
-				str += "<li>" + app.name + "</li>"
-			}
-			
-			for (driver in pkg.drivers) {
-				
-				str += "<li>" + driver.name + "</li>"
-			}
-			str += "</ul>"
-			paragraph str
-		}
-	}
-}
 
-def prefPkgUnistallComplete() {
-	def pkg = state.manifests[pkgUninstall]
-			
-	for (app in pkg.apps) {
-		
-		uninstallApp(app.heID)
-	}
-	
-	for (driver in pkg.drivers) {
-		
-		uninstallDriver(driver.heID)
-	}
-	state.manifests.remove(pkgUninstall)
-	
-	return dynamicPage(name: "prefPkgUnistallConfirm", title: "Uninstall complete", install: true, uninstall: true) {
-		section {
-			paragraph "Package successfully removed."
-		}
-	}
-}
 
 def login() {
 	if (hpmSecurity)
