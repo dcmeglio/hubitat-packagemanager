@@ -98,10 +98,12 @@ def prefInstallChoices() {
     def manifest = getManifestFile(pkgInstall)
 	
 	if (manifest == null) {
-		return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package.")
+		return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package or does not exist.")
 	}
-	
-	state.manifests[pkgInstall] = manifest
+	if (state.manifests[pkgInstall] != null)
+	{
+		return buildErrorPage("Package Already Installed", "${pkgInstall} has already been installed. If you would like to look for upgrades, use the Update function.")
+	}
 	
 	def apps = getOptionalAppsFromManifest(manifest)
 	def drivers = getOptionalDriversFromManifest(manifest)
@@ -113,6 +115,7 @@ def prefInstallChoices() {
 		def title = "Choose the components to install"
 		if (apps.size() == 0 && drivers.size() == 0)
 			title = "Ready to install"
+		state.manifests[pkgInstall] = manifest
 		return dynamicPage(name: "prefInstallChoices", title: title, nextPage: "prefInstallVerify", install: false, uninstall: false) {
 			section {
 				if (apps.size() > 0 || drivers.size() > 0)
