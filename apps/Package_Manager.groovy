@@ -174,6 +174,7 @@ def prefInstall() {
 		}
 		driverFiles[requiredDriver.value.location] = fileContents
 	}
+	
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
@@ -185,8 +186,16 @@ def prefInstall() {
 		}
 	}
 
+	state.action = "install"
+	state.completedActions = [:]
+	state.completedActions["appInstalls"] = []
+	state.completedActions["driverInstalls"] = []
+	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
-		requiredApp.value.heID = installApp(appFiles[requiredApp.value.location])
+		def id = installApp(appFiles[requiredApp.value.location])
+		if (id == null)
+			return rollback("Failed to install app ${requiredApp.value.location}")
+		requiredApp.value.heID = id
 		if (requiredApp.value.oauth)
 			enableOAuth(requiredApp.value.heID)
 	}
@@ -194,20 +203,29 @@ def prefInstall() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
-			matchedApp.heID = installApp(appFiles[matchedApp.location] = fileContents)
+			def id =installApp(appFiles[matchedApp.location])
+			if (id == null)
+				return rollback("Failed to install app ${matchedApp.location}")
+			matchedApp.heID = id
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
 	}
 	
 	for (requiredDriver in requiredDrivers) {
-		requiredDriver.value.heID = installDriver(driverFiles[requiredDriver.value.location])
+		def id = installDriver(driverFiles[requiredDriver.value.location])
+		if (id == null)
+			return rollback("Failed to install driver ${requiredDriver.value.location}")
+		requiredDriver.value.heID = id
 	}
 	
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
-			matchedDriver.heID = installDriver(driverFiles[matchedDriver.location])
+			def id = installDriver(driverFiles[matchedDriver.location])
+			if (id == null)
+				return rollback("Failed to install driver ${matchedDriver.location}")
+			matchedDriver.heID = id
 		}
 	}
 	
@@ -724,7 +742,12 @@ def installApp(appCode) {
 	]
 	def result
 	httpPost(params) { resp ->
-		result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+		if (resp.headers."Location" != null) {
+			result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+			state.completedActions["appInstalls"] << result
+		}
+		else
+			result = null
 	}
 	return result
 }
@@ -876,7 +899,12 @@ def installDriver(driverCode) {
 	]
 	def result
 	httpPost(params) { resp ->
-		result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
+		if (resp.headers."Location" != null) {
+			result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
+			state.completedActions["driverInstalls"] << result
+		}
+		else
+			result = null
 	}
 	return result
 }
@@ -1061,6 +1089,15 @@ def getInstalledApps() {
     return state.appList
 }
 
+def rollback(error) {
+	if (state.action == "install") {
+		for (installedApp in state.completedActions["appInstalls"])
+			uninstallApp(installedApp)
+		for (installedDriver in state.completedActions["driverInstalls"])
+			uninstallDriver(installedDriver)
+	}
+	return buildErrorPage("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
+}
 
 def logDebug(msg) {
     if (settings?.debugOutput) {
