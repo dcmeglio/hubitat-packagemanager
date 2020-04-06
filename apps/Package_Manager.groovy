@@ -229,57 +229,65 @@ def prefPkgModifyChoices() {
 }
 
 def prefVerifyPackageChanges() {
-	def appsToUninstall = "<ul>"
-	def appsToInstall = "<ul>"
-	def driversToUninstall = "<ul>"
-	def driversToInstall = "<ul>"
+	def appsToUninstallStr = "<ul>"
+	def appsToInstallStr = "<ul>"
+	def driversToUninstallStr = "<ul>"
+	def driversToInstallStr = "<ul>"
+	state.appsToUninstall = []
+	state.appsToInstall = []
+	state.driversToUninstall = []
+	state.driversToInstall = []
 	def hasChanges = false
 	
 	def manifest = getInstalledManifest(pkgModify)
 	for (optApp in appsToModify) {
 		if (!isAppInstalled(manifest,optApp)) {
-			appsToInstall += "<li>${getAppNameById(manifest,optApp)}</li>"
+			appsToInstallStr += "<li>${getAppNameById(manifest,optApp)}</li>"
+			state.appsToInstall << optApp
 			hasChanges = true
 		}
 	}
-	appsToInstall += "</ul>"
+	appsToInstallStr += "</ul>"
 	for (optDriver in driversToModify) {
 		if (!isDriverInstalled(manifest,optDriver)) {
-			driversToInstall += "<li>${getDriverNameById(manifest,optDriver)}</li>"
+			driversToInstallStr += "<li>${getDriverNameById(manifest,optDriver)}</li>"
+			state.driversToInstall << optDriver
 			hasChanges = true
 		}
 	}
-	driversToInstall += "</ul>"
+	driversToInstallStr += "</ul>"
 	
 	def installedApps = getInstalledOptionalApps(manifest)
 	def installedDrivers = getInstalledOptionalDrivers(manifest)
 	for (installedApp in installedApps) {
 		if (!appsToModify?.contains(installedApp)) {
-			appsToUninstall += "<li>${getAppNameById(manifest,installedApp)}</li>"
-			hasChanges = truel
-		}
-	}
-	appsToUninstall += "</ul>"
-	
-	for (installedDriver in installedDrivers) {
-		if (!driversToModify?.contains(installedDriver)) {
-			driversToUninstall += "<li>${getDriverNameById(manifest,installedDriver)}</li>"
+			appsToUninstallStr += "<li>${getAppNameById(manifest,installedApp)}</li>"
+			state.appsToUninstall << installedApp
 			hasChanges = true
 		}
 	}
-	driversToUninstall += "</ul>"
+	appsToUninstallStr += "</ul>"
+	
+	for (installedDriver in installedDrivers) {
+		if (!driversToModify?.contains(installedDriver)) {
+			driversToUninstallStr += "<li>${getDriverNameById(manifest,installedDriver)}</li>"
+			state.driversToUninstall << installedDriver
+			hasChanges = true
+		}
+	}
+	driversToUninstallStr += "</ul>"
 
 	if (hasChanges) {
 		return dynamicPage(name: "prefVerifyPackageChanges", title: "The following changes will be made. Click next when you are ready. This may take some time.", nextPage: "prefMakePackageChanges", install: false, uninstall: false) {
 			section {
-				if (appsToUninstall != "<ul></ul>")
-					paragraph "The following apps will be removed: ${appsToUninstall}"
-				if (appsToInstall != "<ul></ul>")
-					paragraph "The following apps will be installed: ${appsToInstall}"
-				if (driversToUninstall != "<ul></ul>")
-					paragraph "The following drivers will be removed: ${driversToUninstall}"
-				if (driversToInstall != "<ul></ul>")
-					paragraph "The following drivers will be installed: ${driversToInstall}"
+				if (appsToUninstallStr != "<ul></ul>")
+					paragraph "The following apps will be removed: ${appsToUninstallStr}"
+				if (appsToInstallStr != "<ul></ul>")
+					paragraph "The following apps will be installed: ${appsToInstallStr}"
+				if (driversToUninstallStr != "<ul></ul>")
+					paragraph "The following drivers will be removed: ${driversToUninstallStr}"
+				if (driversToInstallStr != "<ul></ul>")
+					paragraph "The following drivers will be installed: ${driversToInstallStr}"
 			}
 		}
 	}
@@ -294,6 +302,30 @@ def prefVerifyPackageChanges() {
 
 
 def prefMakePackageChanges() {
+	def manifest = getInstalledManifest(pkgModify)
+	for (appToInstall in state.appsToInstall) {
+		def app = getAppById(manifest, appToInstall)
+		def fileContents = downloadFile(app.location)
+		app.heID = installApp(fileContents)
+	}
+	for (appToUninstall in state.appsToUninstall) {
+		def app = getAppById(manifest, appToUninstall)
+		uninstallApp(app.heID)
+		app.heID = null
+	}
+	
+	for (driverToInstall in state.driversToInstall) {
+		def driver = getDriverById(manifest, driverToInstall)
+		def fileContents = downloadFile(driver.location)
+		driver.heID = installDriver(fileContents)
+		
+	}
+	for (driverToUninstall in state.driversToUninstall) {
+		def driver = getDriverById(manifest, driverToUninstall)
+		uninstallDriver(driver.heID)
+		driver.heID = null
+	}
+	
 	return dynamicPage(name: "prefMakePackageChanges", title: "Installation successful", install: true, uninstall: true) {
 		section {
 			paragraph "Installation successful, click done."
@@ -385,6 +417,24 @@ def getDriverNameById(manifest, id) {
 	return null
 }
 
+def getAppById(manifest, id) {
+	for (app in manifest.apps) {
+		if (app.id == id) {
+			return app
+		}
+	}
+	return null
+}
+
+def getDriverById(manifest, id) {
+	for (driver in manifest.drivers) {
+		if (driver.id == id) {
+			return driver
+		}
+	}
+	return null
+}
+
 def getInstalledOptionalApps(manifest) {
 	def result = []
 	for (app in manifest.apps) {
@@ -442,19 +492,23 @@ def installApp(appCode) {
 }
 
 def uninstallApp(id) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/app/edit/update",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: id,
-			"_action_delete": "Delete"
+	try {
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/app/edit/update",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: id,
+				"_action_delete": "Delete"
+			]
 		]
-	]
-	httpPost(params) { resp ->
+		httpPost(params) { resp ->
+		}
+	}
+	catch (e) {
 	}
 }
 
@@ -481,20 +535,21 @@ def installDriver(driverCode) {
 }
 
 def uninstallDriver(id) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/driver/edit/update",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: id,
-			"_action_delete": "Delete"
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/driver/editor/update",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: id,
+				"_action_delete": "Delete"
+			]
 		]
-	]
-	httpPost(params) { resp ->
-	}
+		httpPost(params) { resp ->
+		}
+
 }
 
 def getOptionalAppsFromManifest(manifest) {
