@@ -98,11 +98,7 @@ def prefInstallChoices() {
     def manifest = getManifestFile(pkgInstall)
 	
 	if (manifest == null) {
-		return dynamicPage(name: "prefInstallChoices", title: "Invalid package file", install: true, uninstall: true) {
-			section {
-				paragraph "${pkgInstall} does not appear to be a valid Hubitat Package."
-			}
-		}
+		return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package.")
 	}
 	
 	state.manifests[pkgInstall] = manifest
@@ -111,11 +107,7 @@ def prefInstallChoices() {
 	def drivers = getOptionalDriversFromManifest(manifest)
 	
 	if (!verifyHEVersion(manifest.minimumHEVersion)) {
-		return dynamicPage(name: "prefInstallChoices", title: "Unsupported Hubitat Firmware", install: true, uninstall: true) {
-			section {
-				paragraph "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing."
-			}
-		}
+		return buildErrorPage("Unsupported Hubitat Firmware", "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing.")
 	} 
 	else { 
 		def title = "Choose the components to install"
@@ -157,23 +149,35 @@ def prefInstall() {
 	
 	for (requiredApp in requiredApps) {
 		def fileContents = downloadFile(requiredApp.value.location)
+		if (fileContents == null) {
+			return buildErrorPage("Error downloading file", "An error occurred downloading ${requiredApp.value.location}")
+		}
 		appFiles[requiredApp.value.location] = fileContents
 	}
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
 			def fileContents = downloadFile(matchedApp.location)
+			if (fileContents == null) {
+				return buildErrorPage("Error downloading file", "An error occurred downloading ${matchedApp.location}")
+			}
 			appFiles[matchedApp.location] = fileContents
 		}
 	}
 	for (requiredDriver in requiredDrivers) {
 		def fileContents = downloadFile(requiredDriver.value.location)
+		if (fileContents == null) {
+			return buildErrorPage("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}")
+		}
 		driverFiles[requiredDriver.value.location] = fileContents
 	}
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
 			def fileContents = downloadFile(matchedDriver.location)
+			if (fileContents == null) {
+				return buildErrorPage("Error downloading file", "An error occurred downloading ${matchedDriver.location}")
+			}
 			driverFiles[matchedDriver.location] = fileContents
 		}
 	}
@@ -340,11 +344,17 @@ def prefMakePackageChanges() {
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
 		def fileContents = downloadFile(app.location)
+		if (fileContents == null) {
+			return buildErrorPage("Error downloading file", "An error occurred downloading ${app.location}")
+		}
 		appFiles[app.location] = fileContents
 	}
 	for (driverToInstall in state.driversToInstall) {
 		def driver = getDriverById(manifest, driverToInstall)
 		def fileContents = downloadFile(driver.location)
+		if (fileContents == null) {
+			return buildErrorPage("Error downloading file", "An error occurred downloading ${driver.location}")
+		}
 		driverFiles[driver.location] = fileContents
 	}
 	
@@ -489,23 +499,38 @@ def prefPkgUpdatesComplete() {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					def fileContents = downloadFile(app.location)
+					if (fileContents == null) {
+						return buildErrorPage("Error downloading file", "An error occurred downloading ${app.location}")
+					}
 					appFiles[app.location] = fileContents					
 				}
 				else if (app.required) {
 					def fileContents = downloadFile(app.location)
+					if (fileContents == null) {
+						return buildErrorPage("Error downloading file", "An error occurred downloading ${app.location}")
+					}
 					appFiles[app.location] = fileContents
 				}
 			}
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					def fileContents = downloadFile(driver.location)
+					if (fileContents == null) {
+						return buildErrorPage("Error downloading file", "An error occurred downloading ${driver.location}")
+					}
 					driverFiles[driver.location] = fileContents
 				}
 				else if (driver.required) {
 					def fileContents = downloadFile(driver.location)
+					if (fileContents == null) {
+						return buildErrorPage("Error downloading file", "An error occurred downloading ${driver.location}")
+					}
 					driverFiles[driver.location] = fileContents
 				}
 			}
+		}
+		else {
+			return buildErrorPage("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.")
 		}
 	}
 	
@@ -545,6 +570,14 @@ def prefPkgUpdatesComplete() {
 	return dynamicPage(name: "prefPkgUpdatesComplete", title: "Updates complete", install: true, uninstall: true) {
 		section {
 			paragraph "Packages successfully updated."
+		}
+	}
+}
+
+def buildErrorPage(title, message) {
+	return dynamicPage(name: "prefError", title: title, install: true, uninstall: true) {
+		section {
+			paragraph message
 		}
 	}
 }
@@ -649,18 +682,25 @@ def getInstalledOptionalDrivers(manifest) {
 }
 
 def downloadFile(file) {
-	def params = [
-        uri: file,
-        requestContentType: "application/json",
-        contentType: "application/json",
-        textParser: true,
-		timeout: 300
-    ]
-	def result
-    httpGet(params) { resp ->
-        result = resp.data.text
-    }
-	return result	
+	try
+	{
+		def params = [
+			uri: file,
+			requestContentType: "application/json",
+			contentType: "application/json",
+			textParser: true,
+			timeout: 300
+		]
+		def result = null
+		httpGet(params) { resp ->
+			result = resp.data.text
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error downloading ${file}: ${e}"
+		return null
+	}
 }
 
 def installApp(appCode) {
