@@ -33,8 +33,10 @@ preferences {
 	page(name: "prefPkgModifyChoices")
 	page(name: "prefVerifyPackageChanges")
 	page(name: "prefMakePackageChanges")
-	page(name: "prefPkgUnistallConfirm")
-	page(name: "prefPkgUnistallComplete")
+	page(name: "prefPkgUninstallConfirm")
+	page(name: "prefPkgUninstallComplete")
+	page(name: "prefPkgVerifyUpdates")
+	page(name: "prefPkgUpdatesComplete")
 
 }
 
@@ -336,15 +338,15 @@ def prefMakePackageChanges() {
 def prefPkgUninstall() {
 	def pkgsToList = getInstalledPackages()
 
-	return dynamicPage(name: "prefPkgUninstall", title: "Choose the package to uninstall", nextPage: "prefPkgUnistallConfirm", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgUninstall", title: "Choose the package to uninstall", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
 		section {
 			input "pkgUninstall", "enum", options: pkgsToList, required: true
 		}
 	}
 }
 
-def prefPkgUnistallConfirm() {
-	return dynamicPage(name: "prefPkgUnistallConfirm", title: "Choose the package to uninstall", nextPage: "prefPkgUnistallComplete", install: false, uninstall: false) {
+def prefPkgUninstallConfirm() {
+	return dynamicPage(name: "prefPkgUninstallConfirm", title: "Choose the package to uninstall", nextPage: "prefPkgUninstallComplete", install: false, uninstall: false) {
 		section {
 			paragraph "The following apps and drivers will be removed:"
 			
@@ -365,7 +367,7 @@ def prefPkgUnistallConfirm() {
 	}
 }
 
-def prefPkgUnistallComplete() {
+def prefPkgUninstallComplete() {
 	def pkg = state.manifests[pkgUninstall]
 			
 	for (app in pkg.apps) {
@@ -379,7 +381,7 @@ def prefPkgUnistallComplete() {
 	}
 	state.manifests.remove(pkgUninstall)
 	
-	return dynamicPage(name: "prefPkgUnistallConfirm", title: "Uninstall complete", install: true, uninstall: true) {
+	return dynamicPage(name: "prefPkgUninstallComplete", title: "Uninstall complete", install: true, uninstall: true) {
 		section {
 			paragraph "Package successfully removed."
 		}
@@ -389,20 +391,82 @@ def prefPkgUnistallComplete() {
 // Update packages pathway
 def prefPkgUpdate() {
 	def needsUpdate = [:]
-	def needsUpdateStr = "<ul>"
+
 	for (pkg in state.manifests) {
 		def manifest = getManifestFile(pkg.key)
 		
-		
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			needsUpdateStr += "<li>${manifest.packageName} - (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})</li>"
-			needsUpdate << manifest
+			needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
 		}
 	}
+	if (needsUpdate.size() > 0) {
+		return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
+			section {
+				paragraph "Updates are available."
+				input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:needsUpdate
+			}
+		}
+	}
+	else {
+		return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", install: true, uninstall: true) {
+			section {
+				paragraph "All packages are up to date."
+			}
+		}
+	}
+}
+
+def prefPkgVerifyUpdates() {
+	def updatesToInstall = "<ul>"
 	
-	return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgUnistallConfirm", install: false, uninstall: false) {
+	for (pkg in pkgsToUpdate) {
+		updatesToInstall += "<li>${state.manifests[pkg].packageName}</li>"
+	}
+	updatesToInstall += "</ul>"
+	return dynamicPage(name: "prefPkgVerifyUpdates", title: "Install Updates?", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
 		section {
-			paragraph needsUpdateStr
+			paragraph "The following updates will be installed: ${updatesToInstall}. Click next to continue. This may take some time."
+		}
+	}
+}
+
+def prefPkgUpdatesComplete() {
+	for (pkg in pkgsToUpdate) {
+		def manifest = getManifestFile(pkg)
+		def installedManifest = state.manifests[pkg]
+		
+		if (manifest) {
+			for (app in manifest.apps) {
+				if (isAppInstalled(installedManifest,app.id)) {
+					def fileContents = downloadFile(app.location)
+					app.heID = getAppById(installedManifest, app.id).heID
+					upgradeApp(app.heID, fileContents)				
+				}
+				else if (app.required) {
+					def fileContents = downloadFile(app.location)
+					app.heID = installApp(fileContents)
+				}
+			}
+			
+			for (driver in manifest.drivers) {
+				if (isDriverInstalled(installedManifest,driver.id)) {
+					def fileContents = downloadFile(driver.location)
+					driver.heID = getDriverById(installedManifest, driver.id).heID
+					upgradeDriver(driver.heID, fileContents)	
+				}
+				else if (driver.required) {
+					def fileContents = downloadFile(driver.location)
+					driver.heID = installDriver(fileContents)
+				}
+			}
+			state.manifests[pkg] = manifest
+		}
+		else {
+		}
+	}
+	return dynamicPage(name: "prefPkgUpdatesComplete", title: "Updates complete", install: true, uninstall: true) {
+		section {
+			paragraph "Packages successfully updated."
 		}
 	}
 }
@@ -527,6 +591,88 @@ def installApp(appCode) {
 	def result
 	httpPost(params) { resp ->
 		result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+	}
+	return result
+}
+
+def getAppVersion(id) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/app/ajax/code",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		query: [
+			id: id
+		]
+	]
+	def result
+	httpGet(params) { resp ->
+		result = resp.data.version
+	}
+	return result
+}
+
+def getDriverVersion(id) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/driver/ajax/code",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		query: [
+			id: id
+		]
+	]
+	def result
+	httpGet(params) { resp ->
+		result = resp.data.version
+	}
+	return result
+}
+
+def upgradeApp(id,appCode) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/app/ajax/update",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		body: [
+			id: id,
+			version: getAppVersion(id),
+			source: appCode
+		],
+		timeout: 300
+	]
+	def result = false
+	httpPost(params) { resp ->
+		result = resp.data.status == "success"
+	}
+	return result
+}
+
+def upgradeDriver(id,appCode) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/driver/ajax/update",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		body: [
+			id: id,
+			version: getDriverVersion(id),
+			source: appCode
+		],
+		timeout: 300
+	]
+	def result = false
+	httpPost(params) { resp ->
+		result = resp.data.status == "success"
 	}
 	return result
 }
@@ -723,7 +869,6 @@ def login() {
 		)
 		{ resp ->
             state.cookie = resp?.headers?.'Set-Cookie'?.split(';')?.getAt(0)
-			log.debug state.cookie + "cookie"
         }
 	}
 }
@@ -739,8 +884,7 @@ def getInstalledApps() {
 		]
 	]
     try {
-        httpGet(params) { resp ->
-            log.debug "response.status: ${resp.status}"            
+        httpGet(params) { resp ->    
             state.appList = []
             def matcherText = resp.data.text.replace("\n","").replace("\r","")
             def matcher = matcherText.findAll(/(<tr class=\"app-row\" data-app-id=\"[^<>]+\">.*?<\/tr>)/).each {
