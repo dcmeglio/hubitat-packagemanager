@@ -31,6 +31,8 @@ preferences {
 	page(name: "prefInstallVerify")
 	page(name: "prefInstall")
 	page(name: "prefPkgModifyChoices")
+	page(name: "prefVerifyPackageChanges")
+	page(name: "prefMakePackageChanges")
 	page(name: "prefPkgUnistallConfirm")
 	page(name: "prefPkgUnistallComplete")
 
@@ -208,7 +210,7 @@ def prefPkgModifyChoices() {
 			}
 		}
 		
-		return dynamicPage(name: "prefPkgModifyChoices", title: "What would you like to modify?", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
+		return dynamicPage(name: "prefPkgModifyChoices", title: "What would you like to modify?", nextPage: "prefVerifyPackageChanges", install: false, uninstall: false) {
 			section {
 				if (optionalApps.size() > 0)
 					input "appsToModify", "enum", title: "Select the apps to install/remove", options: optionalApps, hideWhenEmpty: true, multiple: true, defaultValue: installedOptionalApps
@@ -226,6 +228,78 @@ def prefPkgModifyChoices() {
 	}
 }
 
+def prefVerifyPackageChanges() {
+	def appsToUninstall = "<ul>"
+	def appsToInstall = "<ul>"
+	def driversToUninstall = "<ul>"
+	def driversToInstall = "<ul>"
+	def hasChanges = false
+	
+	def manifest = getInstalledManifest(pkgModify)
+	for (optApp in appsToModify) {
+		if (!isAppInstalled(manifest,optApp)) {
+			appsToInstall += "<li>${getAppNameById(manifest,optApp)}</li>"
+			hasChanges = true
+		}
+	}
+	appsToInstall += "</ul>"
+	for (optDriver in driversToModify) {
+		if (!isDriverInstalled(manifest,optDriver)) {
+			driversToInstall += "<li>${getDriverNameById(manifest,optDriver)}</li>"
+			hasChanges = true
+		}
+	}
+	driversToInstall += "</ul>"
+	
+	def installedApps = getInstalledOptionalApps(manifest)
+	def installedDrivers = getInstalledOptionalDrivers(manifest)
+	for (installedApp in installedApps) {
+		if (!appsToModify?.contains(installedApp)) {
+			appsToUninstall += "<li>${getAppNameById(manifest,installedApp)}</li>"
+			hasChanges = truel
+		}
+	}
+	appsToUninstall += "</ul>"
+	
+	for (installedDriver in installedDrivers) {
+		if (!driversToModify?.contains(installedDriver)) {
+			driversToUninstall += "<li>${getDriverNameById(manifest,installedDriver)}</li>"
+			hasChanges = true
+		}
+	}
+	driversToUninstall += "</ul>"
+
+	if (hasChanges) {
+		return dynamicPage(name: "prefVerifyPackageChanges", title: "The following changes will be made. Click next when you are ready. This may take some time.", nextPage: "prefMakePackageChanges", install: false, uninstall: false) {
+			section {
+				if (appsToUninstall != "<ul></ul>")
+					paragraph "The following apps will be removed: ${appsToUninstall}"
+				if (appsToInstall != "<ul></ul>")
+					paragraph "The following apps will be installed: ${appsToInstall}"
+				if (driversToUninstall != "<ul></ul>")
+					paragraph "The following drivers will be removed: ${driversToUninstall}"
+				if (driversToInstall != "<ul></ul>")
+					paragraph "The following drivers will be installed: ${driversToInstall}"
+			}
+		}
+	}
+	else {
+		return dynamicPage(name: "prefVerifyPackageChanges", title: "Nothing to modify", install: true, uninstall: true) {
+			section {
+				paragraph "You did not make any changes."
+			}
+		}
+	}
+}
+
+
+def prefMakePackageChanges() {
+	return dynamicPage(name: "prefMakePackageChanges", title: "Installation successful", install: true, uninstall: true) {
+		section {
+			paragraph "Installation successful, click done."
+		}
+	}
+}
 
 // Uninstall a package pathway
 def prefPkgUninstall() {
@@ -293,9 +367,43 @@ def isDriverInstalled(manifest, id) {
 	return false
 }
 
+def getAppNameById(manifest, id) {
+	for (app in manifest.apps) {
+		if (app.id == id) {
+			return app.name
+		}
+	}
+	return null
+}
 
+def getDriverNameById(manifest, id) {
+	for (driver in manifest.drivers) {
+		if (driver.id == id) {
+			return driver.name
+		}
+	}
+	return null
+}
 
+def getInstalledOptionalApps(manifest) {
+	def result = []
+	for (app in manifest.apps) {
+		if (app.heID != null && app.required == false) {
+			result << app.id
+		}
+	}
+	return result
+}
 
+def getInstalledOptionalDrivers(manifest) {
+	def result = []
+	for (driver in manifest.drivers) {
+		if (driver.heID != null && driver.required == false) {
+			result << driver.id
+		}
+	}
+	return result
+}
 
 def downloadFile(file) {
 	def params = [
