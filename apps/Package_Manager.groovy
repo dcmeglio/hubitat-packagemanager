@@ -151,14 +151,17 @@ def prefInstall() {
 	for (requiredApp in requiredApps) {
 		def fileContents = downloadFile(requiredApp.value.location)
 		requiredApp.value.heID = installApp(fileContents)
+		if (requiredApp.value.oauth)
+			enableOAuth(requiredApp.value.heID)
 	}
-	
 	
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
 			def fileContents = downloadFile(matchedApp.location)
 			matchedApp.heID = installApp(fileContents)
+			if (matchedApp.oauth)
+				enableOAuth(matchedApp.heID)
 		}
 	}
 	
@@ -308,6 +311,8 @@ def prefMakePackageChanges() {
 		def app = getAppById(manifest, appToInstall)
 		def fileContents = downloadFile(app.location)
 		app.heID = installApp(fileContents)
+		if (app.oauth)
+				enableOAuth(app.heID)
 	}
 	for (appToUninstall in state.appsToUninstall) {
 		def app = getAppById(manifest, appToUninstall)
@@ -440,11 +445,15 @@ def prefPkgUpdatesComplete() {
 				if (isAppInstalled(installedManifest,app.id)) {
 					def fileContents = downloadFile(app.location)
 					app.heID = getAppById(installedManifest, app.id).heID
-					upgradeApp(app.heID, fileContents)				
+					upgradeApp(app.heID, fileContents)
+					if (app.oauth)
+						enableOAuth(app.heID)					
 				}
 				else if (app.required) {
 					def fileContents = downloadFile(app.location)
 					app.heID = installApp(fileContents)
+					if (app.oauth)
+						enableOAuth(app.heID)
 				}
 			}
 			
@@ -604,6 +613,31 @@ def installApp(appCode) {
 	def result
 	httpPost(params) { resp ->
 		result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+	}
+	return result
+}
+
+def enableOAuth(id) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/app/edit/update",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		body: [
+			id: id,
+			version: getAppVersion(id),
+			oauthEnabled: "true",
+			webServerRedirectUri: "",
+			displayLink: "",
+			_action_update: "Update"
+		],
+		timeout: 300
+	]
+	def result = false
+	httpPost(params) { resp ->
+		result = true
 	}
 	return result
 }
