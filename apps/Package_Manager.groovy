@@ -193,8 +193,10 @@ def prefInstall() {
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
 		def id = installApp(appFiles[requiredApp.value.location])
-		if (id == null)
+		if (id == null) {
+			state.manifests[pkgInstall] = null
 			return rollback("Failed to install app ${requiredApp.value.location}")
+		}
 		requiredApp.value.heID = id
 		if (requiredApp.value.oauth)
 			enableOAuth(requiredApp.value.heID)
@@ -203,9 +205,11 @@ def prefInstall() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
-			def id =installApp(appFiles[matchedApp.location])
-			if (id == null)
+			def id = installApp(appFiles[matchedApp.location])
+			if (id == null) {
+				state.manifests[pkgInstall] = null
 				return rollback("Failed to install app ${matchedApp.location}")
+			}
 			matchedApp.heID = id
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
@@ -214,8 +218,10 @@ def prefInstall() {
 	
 	for (requiredDriver in requiredDrivers) {
 		def id = installDriver(driverFiles[requiredDriver.value.location])
-		if (id == null)
+		if (id == null) {
+			state.manifests[pkgInstall] = null
 			return rollback("Failed to install driver ${requiredDriver.value.location}")
+		}
 		requiredDriver.value.heID = id
 	}
 	
@@ -223,8 +229,10 @@ def prefInstall() {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
 			def id = installDriver(driverFiles[matchedDriver.location])
-			if (id == null)
+			if (id == null) {
+				state.manifests[pkgInstall] = null
 				return rollback("Failed to install driver ${matchedDriver.location}")
+			}
 			matchedDriver.heID = id
 		}
 	}
@@ -357,6 +365,8 @@ def prefVerifyPackageChanges() {
 }
 
 def prefMakePackageChanges() {
+	login()
+	
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
 	def driverFiles = [:]
@@ -379,28 +389,56 @@ def prefMakePackageChanges() {
 		driverFiles[driver.location] = fileContents
 	}
 	
-	
+	state.action = "modify"
+	state.completedActions = [:]
+	state.completedActions["appInstalls"] = []
+	state.completedActions["driverInstalls"] = []
+	state.completedActions["appUninstalls"] = []
+	state.completedActions["driverUninstalls"] = []
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
-		app.heID = installApp(appFiles[app.location])
-		if (app.oauth)
+		def id = installApp(appFiles[app.location])
+		if (id != null)
+		{
+			app.heID = id
+			state.completedActions["appInstalls"] << id
+			if (app.oauth)
 				enableOAuth(app.heID)
+		}
+		else
+			return rollback("Failed to install app ${app.location}")
 	}
 	for (appToUninstall in state.appsToUninstall) {
 		def app = getAppById(manifest, appToUninstall)
-		uninstallApp(app.heID)
-		app.heID = null
+		def sourceCode = getDriverSource(app.heID)
+		if (uninstallApp(app.heID)) {
+			state.completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
+			app.heID = null
+		}
+		else
+			return rollback("Failed to uninstall app ${app.location}")
 	}
 	
 	for (driverToInstall in state.driversToInstall) {
 		def driver = getDriverById(manifest, driverToInstall)
-		driver.heID = installDriver(driverFiles[driver.location])
+		def id = installDriver(driverFiles[driver.location])
+		if (id != null) {
+			driver.heID = id
+		}
+		else
+			return rollback("Failed to install driver ${driver.location}")
 		
 	}
 	for (driverToUninstall in state.driversToUninstall) {
 		def driver = getDriverById(manifest, driverToUninstall)
-		uninstallDriver(driver.heID)
-		driver.heID = null
+		def sourceCode = getDriverSource(driver.heID)
+		if (uninstallDriver(driver.heID)) {
+			state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
+			driver.heID = null
+			return rollback("Failed to uninstall driver ${driver.location}")
+		}
+		else
+			return rollback("Failed to uninstall driver ${driver.location}")
 	}
 	
 	return dynamicPage(name: "prefMakePackageChanges", title: "Installation successful", install: true, uninstall: true) {
@@ -682,6 +720,24 @@ def getDriverById(manifest, id) {
 	return null
 }
 
+def getAppByHEId(manifest, id) {
+	for (app in manifest.apps) {
+		if (app.heID == id) {
+			return app
+		}
+	}
+	return null
+}
+
+def getDriverByHEId(manifest, id) {
+	for (driver in manifest.drivers) {
+		if (driver.heID == id) {
+			return driver
+		}
+	}
+	return null
+}
+
 def getInstalledOptionalApps(manifest) {
 	def result = []
 	for (app in manifest.apps) {
@@ -724,33 +780,7 @@ def downloadFile(file) {
 	}
 }
 
-def installApp(appCode) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/app/save",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: "",
-			version: "",
-			create: "",
-			source: appCode
-		],
-		timeout: 300
-	]
-	def result
-	httpPost(params) { resp ->
-		if (resp.headers."Location" != null) {
-			result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
-			state.completedActions["appInstalls"] << result
-		}
-		else
-			result = null
-	}
-	return result
-}
+
 
 def enableOAuth(id) {
 	def params = [
@@ -815,118 +845,7 @@ def getDriverVersion(id) {
 	return result
 }
 
-def upgradeApp(id,appCode) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/app/ajax/update",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: id,
-			version: getAppVersion(id),
-			source: appCode
-		],
-		timeout: 300
-	]
-	def result = false
-	httpPost(params) { resp ->
-		result = resp.data.status == "success"
-	}
-	return result
-}
 
-def upgradeDriver(id,appCode) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/driver/ajax/update",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: id,
-			version: getDriverVersion(id),
-			source: appCode
-		],
-		timeout: 300
-	]
-	def result = false
-	httpPost(params) { resp ->
-		result = resp.data.status == "success"
-	}
-	return result
-}
-
-def uninstallApp(id) {
-	try {
-		def params = [
-			uri: "http://127.0.0.1:8080",
-			path: "/app/edit/update",
-			requestContentType: "application/x-www-form-urlencoded",
-			headers: [
-				"Cookie": state.cookie
-			],
-			body: [
-				id: id,
-				"_action_delete": "Delete"
-			],
-			timeout: 300
-		]
-		httpPost(params) { resp ->
-		}
-	}
-	catch (e) {
-	}
-}
-
-def installDriver(driverCode) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/driver/save",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: "",
-			version: "",
-			create: "",
-			source: driverCode
-		],
-		timeout: 300
-	]
-	def result
-	httpPost(params) { resp ->
-		if (resp.headers."Location" != null) {
-			result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
-			state.completedActions["driverInstalls"] << result
-		}
-		else
-			result = null
-	}
-	return result
-}
-
-def uninstallDriver(id) {
-		def params = [
-			uri: "http://127.0.0.1:8080",
-			path: "/driver/editor/update",
-			requestContentType: "application/x-www-form-urlencoded",
-			headers: [
-				"Cookie": state.cookie
-			],
-			body: [
-				id: id,
-				"_action_delete": "Delete"
-			],
-			timeout: 300
-		]
-		httpPost(params) { resp ->
-		}
-
-}
 
 def getOptionalAppsFromManifest(manifest) {
 	def appsList = [:]
@@ -1063,38 +982,264 @@ def login() {
 	}
 }
 
-def getInstalledApps() {
-	login()
-	
-	def params = [
-    	uri: "http://127.0.0.1:8080/app/list",
-        textParser: true,
-		headers: [
-			Cookie: cookie
+def getAppSource(id) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/app/ajax/code",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			query: [
+				id: id
+			],
+			timeout: 300
 		]
-	]
-    try {
-        httpGet(params) { resp ->    
-            state.appList = []
-            def matcherText = resp.data.text.replace("\n","").replace("\r","")
-            def matcher = matcherText.findAll(/(<tr class=\"app-row\" data-app-id=\"[^<>]+\">.*?<\/tr>)/).each {
-                def href = it.find(/href="([^"]+)/) { match,h -> return h }
-                def title = it.find(/title="([^"]+)/) { match,t -> return t }
-                state.appList += [title:title,href:href]
-            }
-        }
-    } catch (e) {
-        log.debug "e: ${e}"
-    }
-    return state.appList
+		def result
+		httpGet(params) { resp ->
+			result = resp.data.source
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error retrieving app source: ${e}"
+	}
+	return null	
+}
+
+def getDriverSource(id) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/driver/ajax/code",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			query: [
+				id: id
+			],
+			timeout: 300
+		]
+		def result
+		httpGet(params) { resp ->
+			result = resp.data.source
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error retrieving driver source: ${e}"
+	}
+	return null	
+}
+
+// App installation methods
+def installApp(appCode) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/app/save",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: "",
+				version: "",
+				create: "",
+				source: appCode
+			],
+			timeout: 300
+		]
+		def result
+		httpPost(params) { resp ->
+			if (resp.headers."Location" != null) {
+				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+				state.completedActions["appInstalls"] << result
+			}
+			else
+				result = null
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error installing app: ${e}"
+	}
+	return null	
+}
+
+def upgradeApp(id,appCode) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/app/ajax/update",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: id,
+				version: getAppVersion(id),
+				source: appCode
+			],
+			timeout: 300
+		]
+		def result = false
+		httpPost(params) { resp ->
+			result = resp.data.status == "success"
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error upgrading app: ${e}"
+	}
+	return null
+}
+
+def uninstallApp(id) {
+	try {
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/app/edit/update",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: id,
+				"_action_delete": "Delete"
+			],
+			timeout: 300
+		]
+		httpPost(params) { resp ->
+		}
+		return true
+	}
+	catch (e) {
+		log.error "Error uninstalling app ${e}"
+		return false
+	}
+}
+
+// Driver installation methods
+def installDriver(driverCode) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/driver/save",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: "",
+				version: "",
+				create: "",
+				source: driverCode
+			],
+			timeout: 300
+		]
+		def result
+		httpPost(params) { resp ->
+			if (resp.headers."Location" != null) {
+				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
+				state.completedActions["driverInstalls"] << result
+			}
+			else
+				result = null
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error installing driver: ${e}"
+	}
+	return null
+}
+
+def upgradeDriver(id,appCode) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/driver/ajax/update",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: id,
+				version: getDriverVersion(id),
+				source: appCode
+			],
+			timeout: 300
+		]
+		def result = false
+		httpPost(params) { resp ->
+			result = resp.data.status == "success"
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error upgrading driver ${e}"
+	}
+	return null
+}
+
+def uninstallDriver(id) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/driver/editor/update",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				id: id,
+				"_action_delete": "Delete"
+			],
+			timeout: 300
+		]
+		httpPost(params) { resp ->
+		}
+		return true
+	}
+	catch (e)
+	{
+		log.error "Error uninstalling driver: ${e}"
+		return false
+	}
+
 }
 
 def rollback(error) {
-	if (state.action == "install") {
+	if (state.action == "install" || state.action == "modify") {
 		for (installedApp in state.completedActions["appInstalls"])
 			uninstallApp(installedApp)
 		for (installedDriver in state.completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
+	}
+	if (state.action == "modify") {
+		def manifest = getInstalledManifest(pkgModify)
+		for (installedApp in state.completedActions["appInstalls"])
+			getAppByHEId(manifest, installedApp).heID = null
+		for (installedDriver in state.completedActions["driverInstalls"])
+			getDriverByHEId(manifest, installedDriver).heID = null
+		for (uninstalledApp in state.completedActions["appUninstalls"]) {
+			def newHeID = installApp(uninstalledApp.source)
+			getAppById(manifest, uninstallApp.id).heID = newHeID
+		}
+		for (uninstalledDriver in state.completedActions["driverUninstalls"]) {
+			def newHeID = installDriver(uninstalledDriver.source)
+			getDriverById(manifest, uninstalledDriver.id).heID = newHeID
+		}
 	}
 	return buildErrorPage("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
 }
