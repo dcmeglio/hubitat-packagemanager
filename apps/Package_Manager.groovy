@@ -633,6 +633,13 @@ def performUpdateCheck() {
 }
 
 def prefPkgVerifyUpdates() {
+
+	atomicState.statusMessage = ""
+	atomicState.inProgress = null
+	atomicState.error = null
+	atomicState.errorTitle = null
+	atomicState.errorMessage = null
+
 	def updatesToInstall = "<ul>"
 	
 	for (pkg in pkgsToUpdate) {
@@ -641,12 +648,33 @@ def prefPkgVerifyUpdates() {
 	updatesToInstall += "</ul>"
 	return dynamicPage(name: "prefPkgVerifyUpdates", title: "Install Updates?", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
 		section {
-			paragraph "The following updates will be installed: ${updatesToInstall}. Click next to continue. This may take some time."
+			paragraph "The following updates will be installed: ${updatesToInstall} Click next to continue. This may take some time."
 		}
 	}
 }
-
 def prefPkgUpdatesComplete() {
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
+	}
+	if (atomicState.inProgress == null) {
+		atomicState.inProgress = true
+		runInMillis(1,performUpdates)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefPkgUpdatesComplete", title: "Installing updates", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
+			section {
+				paragraph "Installing updates... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+		}
+	}
+	else {
+		return complete("Installation complete", "The updates have been installed, click Done.")
+	}
+}
+
+
+def performUpdates() {
 	login()
 	// Download all files first to reduce the chances of a network error
 	def downloadedManifests = [:]
@@ -662,39 +690,43 @@ def prefPkgUpdatesComplete() {
 		if (manifest) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
+					setBackgroundStatusMessage("Downloading ${app.name}")
 					def fileContents = downloadFile(app.location)
 					if (fileContents == null) {
-						return buildErrorPage("Error downloading file", "An error occurred downloading ${app.location}")
+						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
 					}
 					appFiles[app.location] = fileContents					
 				}
 				else if (app.required) {
+					setBackgroundStatusMessage("Downloading ${app.name}")
 					def fileContents = downloadFile(app.location)
 					if (fileContents == null) {
-						return buildErrorPage("Error downloading file", "An error occurred downloading ${app.location}")
+						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
 					}
 					appFiles[app.location] = fileContents
 				}
 			}
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
+					setBackgroundStatusMessage("Downloading ${driver.name}")
 					def fileContents = downloadFile(driver.location)
 					if (fileContents == null) {
-						return buildErrorPage("Error downloading file", "An error occurred downloading ${driver.location}")
+						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
 					}
 					driverFiles[driver.location] = fileContents
 				}
 				else if (driver.required) {
+					setBackgroundStatusMessage("Downloading ${driver.name}")
 					def fileContents = downloadFile(driver.location)
 					if (fileContents == null) {
-						return buildErrorPage("Error downloading file", "An error occurred downloading ${driver.location}")
+						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
 					}
 					driverFiles[driver.location] = fileContents
 				}
 			}
 		}
 		else {
-			return buildErrorPage("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.")
+			return triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.")
 		}
 	}
 	
@@ -710,7 +742,7 @@ def prefPkgUpdatesComplete() {
 				if (isAppInstalled(installedManifest,app.id)) {
 					app.heID = getAppById(installedManifest, app.id).heID
 					def sourceCode = getAppSource(app.heID)
-					
+					setBackgroundStatusMessage("Upgrading ${app.name}")
 					if (upgradeApp(app.heID, appFiles[app.location])) {
 						state.completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 						if (app.oauth)
@@ -720,6 +752,7 @@ def prefPkgUpdatesComplete() {
 						return rollback("Failed to upgrade app ${app.location}")
 				}
 				else if (app.required) {
+					setBackgroundStatusMessage("Installing ${app.name}")
 					def id = installApp(appFiles[app.location])
 					if (id != null) {
 						app.heID = id
@@ -735,7 +768,7 @@ def prefPkgUpdatesComplete() {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					driver.heID = getDriverById(installedManifest, driver.id).heID
 					def sourceCode = getDriverSource(driver.heID)
-
+					setBackgroundStatusMessage("Upgrading ${driver.name}")
 					if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
 						state.completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 					}
@@ -743,6 +776,7 @@ def prefPkgUpdatesComplete() {
 						return rollback("Failed to upgrade driver ${driver.location}")
 				}
 				else if (driver.required) {
+					setBackgroundStatusMessage("Installing ${driver.name}")
 					def id = installDriver(driverFiles[driver.location])
 					if (id != null) {
 						driver.heID = id
@@ -756,7 +790,7 @@ def prefPkgUpdatesComplete() {
 		else {
 		}
 	}
-	return complete("Updates complete", "The packages have been successfully updated, click Done.")
+	atomicState.inProgress = false
 }
 
 def buildErrorPage(title, message) {
