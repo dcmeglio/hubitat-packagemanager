@@ -390,6 +390,28 @@ def prefVerifyPackageChanges() {
 }
 
 def prefMakePackageChanges() {
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
+	}
+	if (atomicState.inProgress == null) {
+		atomicState.inProgress = true
+		runInMillis(1,performModify)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefMakePackageChanges", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
+			section {
+				paragraph "Your installation is currently in progress... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+			
+		}
+	}
+	else {
+		return complete("Installation complete", "The package was sucessfully modified, click Done.")
+	}
+}
+
+def performModify() {
 	login()
 	
 	// Download all files first to reduce the chances of a network error
@@ -399,17 +421,19 @@ def prefMakePackageChanges() {
 	
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
+		setBackgroundStatusMessage("Downloading ${app.name}")
 		def fileContents = downloadFile(app.location)
 		if (fileContents == null) {
-			return buildErrorPage("Error downloading file", "An error occurred downloading ${app.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
 		}
 		appFiles[app.location] = fileContents
 	}
 	for (driverToInstall in state.driversToInstall) {
 		def driver = getDriverById(manifest, driverToInstall)
+		setBackgroundStatusMessage("Downloading ${driver.name}")
 		def fileContents = downloadFile(driver.location)
 		if (fileContents == null) {
-			return buildErrorPage("Error downloading file", "An error occurred downloading ${driver.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
 		}
 		driverFiles[driver.location] = fileContents
 	}
@@ -417,6 +441,7 @@ def prefMakePackageChanges() {
 	initializeRollbackState("modify")
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
+		setBackgroundStatusMessage("Installing ${app.name}")
 		def id = installApp(appFiles[app.location])
 		if (id != null)
 		{
@@ -431,6 +456,7 @@ def prefMakePackageChanges() {
 	for (appToUninstall in state.appsToUninstall) {
 		def app = getAppById(manifest, appToUninstall)
 		def sourceCode = getDriverSource(app.heID)
+		setBackgroundStatusMessage("Uninstalling ${app.name}")
 		if (uninstallApp(app.heID)) {
 			state.completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
 			app.heID = null
@@ -441,6 +467,7 @@ def prefMakePackageChanges() {
 	
 	for (driverToInstall in state.driversToInstall) {
 		def driver = getDriverById(manifest, driverToInstall)
+		setBackgroundStatusMessage("Installing ${driver.name}")
 		def id = installDriver(driverFiles[driver.location])
 		if (id != null) {
 			driver.heID = id
@@ -452,6 +479,7 @@ def prefMakePackageChanges() {
 	for (driverToUninstall in state.driversToUninstall) {
 		def driver = getDriverById(manifest, driverToUninstall)
 		def sourceCode = getDriverSource(driver.heID)
+		setBackgroundStatusMessage("Uninstalling ${driver.name}")
 		if (uninstallDriver(driver.heID)) {
 			state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 			driver.heID = null
@@ -459,7 +487,7 @@ def prefMakePackageChanges() {
 		else
 			return rollback("Failed to uninstall driver ${driver.location}")
 	}
-	return complete("Installation complete", "The package was sucessfully changed, click Done.")
+	atomicState.inProgress = false
 }
 
 // Uninstall a package pathway
