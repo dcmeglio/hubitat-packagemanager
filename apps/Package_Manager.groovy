@@ -580,32 +580,56 @@ def performUninstall() {
 	atomicState.inProgress = false
 }	
 
-// Update packages pathway
 def prefPkgUpdate() {
-	def needsUpdate = [:]
-
-	for (pkg in state.manifests) {
-		def manifest = getManifestFile(pkg.key)
-		
-		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
-		}
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
-	if (needsUpdate.size() > 0) {
-		return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
+	if (atomicState.inProgress == null) {
+		atomicState.inProgress = true
+		runInMillis(1,performUpdateCheck)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefPkgUpdate", title: "Checking for updates", nextPage: "prefPkgUpdate", install: false, uninstall: false, refreshInterval: 2) {
 			section {
-				paragraph "Updates are available."
-				input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:needsUpdate
+				paragraph "Checking for updates... Please wait..."
+				paragraph getBackgroundStatusMessage()
 			}
+			
 		}
 	}
 	else {
-		return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", install: true, uninstall: true) {
-			section {
-				paragraph "All packages are up to date."
+		if (state.needsUpdate.size() > 0) {
+			return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
+				section {
+					paragraph "Updates are available."
+					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:state.needsUpdate
+				}
+			}
+		}
+		else {
+			return dynamicPage(name: "prefPkgUpdate", title: "No Updates Available", install: true, uninstall: true) {
+				section {
+					paragraph "All packages are up to date."
+				}
 			}
 		}
 	}
+}
+
+// Update packages pathway
+def performUpdateCheck() {
+	state.needsUpdate = [:]
+
+	for (pkg in state.manifests) {
+		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
+		def manifest = getManifestFile(pkg.key)
+		
+		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
+			state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
+		}
+	}
+	atomicState.inProgress = false
+
 }
 
 def prefPkgVerifyUpdates() {
@@ -752,6 +776,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("driversToModify")
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
+	state.needsUpdate = [:]
 	if (clearProgress) {
 		atomicState.statusMessage = ""
 		atomicState.inProgress = null
