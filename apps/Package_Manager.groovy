@@ -139,6 +139,9 @@ def prefInstallVerify() {
 }
 
 def prefInstall() {
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
+	}
 	if (atomicState.inProgress == null) {
 		atomicState.inProgress = true
 		runInMillis(1,performInstallation)
@@ -173,7 +176,7 @@ def performInstallation() {
 		def fileContents = downloadFile(requiredApp.value.location)
 		if (fileContents == null) {
 			state.manifests[pkgInstall] = null
-			return buildErrorPage("Error downloading file", "An error occurred downloading ${requiredApp.value.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${requiredApp.value.location}")
 		}
 		appFiles[requiredApp.value.location] = fileContents
 	}
@@ -184,7 +187,7 @@ def performInstallation() {
 			def fileContents = downloadFile(matchedApp.location)
 			if (fileContents == null) {
 				state.manifests[pkgInstall] = null
-				return buildErrorPage("Error downloading file", "An error occurred downloading ${matchedApp.location}")
+				return triggerError("Error downloading file", "An error occurred downloading ${matchedApp.location}")
 			}
 			appFiles[matchedApp.location] = fileContents
 		}
@@ -194,7 +197,7 @@ def performInstallation() {
 		def fileContents = downloadFile(requiredDriver.value.location)
 		if (fileContents == null) {
 			state.manifests[pkgInstall] = null
-			return buildErrorPage("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}")
 		}
 		driverFiles[requiredDriver.value.location] = fileContents
 	}
@@ -206,7 +209,7 @@ def performInstallation() {
 			def fileContents = downloadFile(matchedDriver.location)
 			if (fileContents == null) {
 				state.manifests[pkgInstall] = null
-				return buildErrorPage("Error downloading file", "An error occurred downloading ${matchedDriver.location}")
+				return triggerError("Error downloading file", "An error occurred downloading ${matchedDriver.location}")
 			}
 			driverFiles[matchedDriver.location] = fileContents
 		}
@@ -700,6 +703,9 @@ def clearStateSettings(clearProgress) {
 	if (clearProgress) {
 		atomicState.statusMessage = ""
 		atomicState.inProgress = null
+		atomicState.error = null
+		atomicState.errorTitle = null
+		atomicState.errorMessage = null
 	}
 }
 
@@ -1250,6 +1256,12 @@ def getBackgroundStatusMessage() {
 	return atomicState.statusMessage
 }
 
+def triggerError(title, message) {
+	atomicState.error = true
+	atomicState.errorTitle = title
+	atomicState.errorMessage = message
+}
+
 def complete(title, message) {
 	state.action = null
 	state.completedActions = null
@@ -1271,9 +1283,9 @@ def rollback(error) {
 		manifest = getInstalledManifest(pkgUninstall)
 	else if (state.action == "update")
 		manifest = state.updateManifest
-		
+	setBackgroundStatusMessage("Fatal error occurred, rolling back")
 	if (state.action == "install" || state.action == "modify" || state.action == "update") {
-		for (installedApp in state.completedActions["appInstalls"])
+		for (installedApp in state.completedActions["appInstalls"]) {
 			uninstallApp(installedApp)
 		for (installedDriver in state.completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
@@ -1308,8 +1320,7 @@ def rollback(error) {
 	state.action = null
 	state.completedActions = null
 	state.updateManifest = null
-	
-	return buildErrorPage("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
+	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
 }
 
 def logDebug(msg) {
