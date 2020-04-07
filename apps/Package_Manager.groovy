@@ -240,7 +240,7 @@ def prefInstall() {
 			matchedDriver.heID = id
 		}
 	}
-	
+	complete()
     return dynamicPage(name: "prefInstall", title: "Ready to install", install: true, uninstall: true) {
 		section {
 			paragraph "Installation successful, click done."
@@ -445,7 +445,7 @@ def prefMakePackageChanges() {
 		else
 			return rollback("Failed to uninstall driver ${driver.location}")
 	}
-	
+	complete()
 	return dynamicPage(name: "prefMakePackageChanges", title: "Installation successful", install: true, uninstall: true) {
 		section {
 			paragraph "Installation successful, click done."
@@ -522,7 +522,7 @@ def prefPkgUninstallComplete() {
 
 	}
 	state.manifests.remove(pkgUninstall)
-	
+	complete()
 	return dynamicPage(name: "prefPkgUninstallComplete", title: "Uninstall complete", install: true, uninstall: true) {
 		section {
 			paragraph "Package successfully removed."
@@ -688,6 +688,7 @@ def prefPkgUpdatesComplete() {
 		else {
 		}
 	}
+	complete()
 	return dynamicPage(name: "prefPkgUpdatesComplete", title: "Updates complete", install: true, uninstall: true) {
 		section {
 			paragraph "Packages successfully updated."
@@ -1279,6 +1280,13 @@ def uninstallDriver(id) {
 		return false
 	}
 
+}
+
+def complete() {
+	state.action = null
+	state.completedActions = null
+	state.updateManifest = null
+	clearStateSettings()
 }
 
 def rollback(error) {
