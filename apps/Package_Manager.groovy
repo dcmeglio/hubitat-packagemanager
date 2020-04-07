@@ -890,8 +890,6 @@ def getDriverVersion(id) {
 	return result
 }
 
-
-
 def getOptionalAppsFromManifest(manifest) {
 	def appsList = [:]
 	for (app in manifest.apps) {
@@ -939,26 +937,12 @@ def getInstalledManifest(pkgId) {
 def getManifestFile(uri) {
 	try
 	{
-		def result
-		def params = [
-			uri: uri,
-			requestContentType: "application/json",
-			contentType: "application/json",
-			textParser: true
-		]
-		
-		httpGet(params) { resp ->
-			result = new groovy.json.JsonSlurper().parseText(resp.data.text)
-		}
-		if (result.packageName == null || result.packageId == null)
-			return null
-		return result
+		def fileContents = downloadFile(uri)
+		new groovy.json.JsonSlurper().parseText(fileContents)
 	}
-	catch (e)
-	{
+	catch (e) {
 		return null
-	}
-	
+	}	
 }
 
 def verifyHEVersion(versionStr) {
