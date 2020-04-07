@@ -34,7 +34,7 @@ preferences {
 	page(name: "prefVerifyPackageChanges")
 	page(name: "prefMakePackageChanges")
 	page(name: "prefPkgUninstallConfirm")
-	page(name: "prefPkgUninstallComplete")
+	page(name: "prefUninstall")
 	page(name: "prefPkgVerifyUpdates")
 	page(name: "prefPkgUpdatesComplete")
 }
@@ -175,7 +175,7 @@ def performInstallation() {
 		setBackgroundStatusMessage("Downloading ${requiredApp.value.name}")
 		def fileContents = downloadFile(requiredApp.value.location)
 		if (fileContents == null) {
-			state.manifests[pkgInstall] = null
+			state.manifests.remove(pkgInstall)
 			return triggerError("Error downloading file", "An error occurred downloading ${requiredApp.value.location}")
 		}
 		appFiles[requiredApp.value.location] = fileContents
@@ -186,7 +186,7 @@ def performInstallation() {
 			setBackgroundStatusMessage("Downloading ${matchedApp.name}")
 			def fileContents = downloadFile(matchedApp.location)
 			if (fileContents == null) {
-				state.manifests[pkgInstall] = null
+				state.manifests.remove(pkgInstall)
 				return triggerError("Error downloading file", "An error occurred downloading ${matchedApp.location}")
 			}
 			appFiles[matchedApp.location] = fileContents
@@ -196,7 +196,7 @@ def performInstallation() {
 		setBackgroundStatusMessage("Downloading ${requiredDriver.value.name}")
 		def fileContents = downloadFile(requiredDriver.value.location)
 		if (fileContents == null) {
-			state.manifests[pkgInstall] = null
+			state.manifests.remove(pkgInstall)
 			return triggerError("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}")
 		}
 		driverFiles[requiredDriver.value.location] = fileContents
@@ -208,7 +208,7 @@ def performInstallation() {
 			setBackgroundStatusMessage("Downloading ${matchedDriver.name}")
 			def fileContents = downloadFile(matchedDriver.location)
 			if (fileContents == null) {
-				state.manifests[pkgInstall] = null
+				state.manifests.remove(pkgInstall)
 				return triggerError("Error downloading file", "An error occurred downloading ${matchedDriver.location}")
 			}
 			driverFiles[matchedDriver.location] = fileContents
@@ -221,7 +221,7 @@ def performInstallation() {
 		setBackgroundStatusMessage("Installing ${requiredApp.value.name}")
 		def id = installApp(appFiles[requiredApp.value.location])
 		if (id == null) {
-			state.manifests[pkgInstall] = null
+			state.manifests.remove(pkgInstall)
 			return rollback("Failed to install app ${requiredApp.value.location}")
 		}
 		requiredApp.value.heID = id
@@ -235,7 +235,7 @@ def performInstallation() {
 			setBackgroundStatusMessage("Installing ${matchedApp.name}")
 			def id = installApp(appFiles[matchedApp.location])
 			if (id == null) {
-				state.manifests[pkgInstall] = null
+				state.manifests.remove(pkgInstall)
 				return rollback("Failed to install app ${matchedApp.location}")
 			}
 			matchedApp.heID = id
@@ -248,7 +248,7 @@ def performInstallation() {
 		setBackgroundStatusMessage("Installing ${requiredDriver.value.name}")
 		def id = installDriver(driverFiles[requiredDriver.value.location])
 		if (id == null) {
-			state.manifests[pkgInstall] = null
+			state.manifests.remove(pkgInstall)
 			return rollback("Failed to install driver ${requiredDriver.value.location}")
 		}
 		requiredDriver.value.heID = id
@@ -260,7 +260,7 @@ def performInstallation() {
 			setBackgroundStatusMessage("Installing ${matchedDriver.name}")
 			def id = installDriver(driverFiles[matchedDriver.location])
 			if (id == null) {
-				state.manifests[pkgInstall] = null
+				state.manifests.remove(pkgInstall)
 				return rollback("Failed to install driver ${matchedDriver.location}")
 			}
 			matchedDriver.heID = id
@@ -474,7 +474,7 @@ def prefPkgUninstall() {
 }
 
 def prefPkgUninstallConfirm() {
-	return dynamicPage(name: "prefPkgUninstallConfirm", title: "Choose the package to uninstall", nextPage: "prefPkgUninstallComplete", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgUninstallConfirm", title: "Choose the package to uninstall", nextPage: "prefUninstall", install: false, uninstall: false) {
 		section {
 			paragraph "The following apps and drivers will be removed:"
 			
@@ -495,7 +495,29 @@ def prefPkgUninstallConfirm() {
 	}
 }
 
-def prefPkgUninstallComplete() {
+def prefUninstall() {
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
+	}
+	if (atomicState.inProgress == null) {
+		atomicState.inProgress = true
+		runInMillis(1,performUninstall)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefUninstall", title: "Uninstall in progress", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
+			section {
+				paragraph "Your uninstall is currently in progress... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+			
+		}
+	}
+	else {
+		return complete("Installation complete", "The package was sucessfully uninstalled, click Done.")
+	}
+}
+
+def performUninstall() {
 	login()
 	def pkg = state.manifests[pkgUninstall]
 	
@@ -504,6 +526,7 @@ def prefPkgUninstallComplete() {
 	for (app in pkg.apps) {
 		if (app.heID != null) {
 			def sourceCode = getAppSource(app.heID)
+			setBackgroundStatusMessage("Uninstalling ${app.name}")
 			if (uninstallApp(app.heID))
 			{
 				state.completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
@@ -516,6 +539,7 @@ def prefPkgUninstallComplete() {
 	for (driver in pkg.drivers) {
 		if (driver.heID != null) {
 			def sourceCode = getDriverSource(driver.heID)
+			setBackgroundStatusMessage("Uninstalling ${driver.name}")
 			if (uninstallDriver(driver.heID)) {
 				state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 			}
@@ -525,7 +549,7 @@ def prefPkgUninstallComplete() {
 
 	}
 	state.manifests.remove(pkgUninstall)
-	return complete("Uninstall complete", "The package was successfully removed, click Done.")
+	atomicState.inProgress = false
 }	
 
 // Update packages pathway
@@ -1285,7 +1309,7 @@ def rollback(error) {
 		manifest = state.updateManifest
 	setBackgroundStatusMessage("Fatal error occurred, rolling back")
 	if (state.action == "install" || state.action == "modify" || state.action == "update") {
-		for (installedApp in state.completedActions["appInstalls"]) {
+		for (installedApp in state.completedActions["appInstalls"])
 			uninstallApp(installedApp)
 		for (installedDriver in state.completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
