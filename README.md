@@ -7,4 +7,6 @@
  ![Initial Setup Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MainPage1.PNG)
  
  ## Installing a Package
- There are two ways to install a package. If you know the URL of the 
+ There are two ways to install a package. You can choose a package from a list of pre-configured repositories by choosing *From a Repository*, or, if you know the URL of a package you can choose *From a URL*
+ 
+ ![Install Options Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Install1.PNG)
