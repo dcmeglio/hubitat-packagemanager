@@ -186,14 +186,7 @@ def prefInstall() {
 		}
 	}
 
-	state.action = "install"
-	state.completedActions = [:]
-	state.completedActions["appInstalls"] = []
-	state.completedActions["driverInstalls"] = []
-	state.completedActions["appUninstalls"] = []
-	state.completedActions["driverUninstalls"] = []
-	state.completedActions["appUpgrades"] = []
-	state.completedActions["driverUpgrades"] = []
+	initializeRollbackState("install")
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
 		def id = installApp(appFiles[requiredApp.value.location])
@@ -240,12 +233,7 @@ def prefInstall() {
 			matchedDriver.heID = id
 		}
 	}
-	complete()
-    return dynamicPage(name: "prefInstall", title: "Ready to install", install: true, uninstall: true) {
-		section {
-			paragraph "Installation successful, click done."
-		}
-	}
+	return complete("Installation complete", "The package was sucessfully installed, click Done.")
 }
 
 // Modify a package pathway
@@ -393,14 +381,7 @@ def prefMakePackageChanges() {
 		driverFiles[driver.location] = fileContents
 	}
 	
-	state.action = "modify"
-	state.completedActions = [:]
-	state.completedActions["appInstalls"] = []
-	state.completedActions["driverInstalls"] = []
-	state.completedActions["appUninstalls"] = []
-	state.completedActions["driverUninstalls"] = []
-	state.completedActions["appUpgrades"] = []
-	state.completedActions["driverUpgrades"] = []
+	initializeRollbackState("modify")
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
 		def id = installApp(appFiles[app.location])
@@ -445,12 +426,7 @@ def prefMakePackageChanges() {
 		else
 			return rollback("Failed to uninstall driver ${driver.location}")
 	}
-	complete()
-	return dynamicPage(name: "prefMakePackageChanges", title: "Installation successful", install: true, uninstall: true) {
-		section {
-			paragraph "Installation successful, click done."
-		}
-	}
+	return complete("Installation complete", "The package was sucessfully changed, click Done.")
 }
 
 // Uninstall a package pathway
@@ -473,12 +449,12 @@ def prefPkgUninstallConfirm() {
 			def pkg = state.manifests[pkgUninstall]
 			for (app in pkg.apps) {
 				if (app.heID != null)
-					str += "<li>" + app.name + "</li>"
+					str += "<li>${app.name}</li>"
 			}
 			
 			for (driver in pkg.drivers) {
 				if (driver.heID != null)
-					str += "<li>" + driver.name + "</li>"
+					str += "<li>${driver.name}</li>"
 			}
 			str += "</ul>"
 			paragraph str
@@ -490,14 +466,7 @@ def prefPkgUninstallComplete() {
 	login()
 	def pkg = state.manifests[pkgUninstall]
 	
-	state.action = "uninstall"
-	state.completedActions = [:]
-	state.completedActions["appInstalls"] = []
-	state.completedActions["driverInstalls"] = []
-	state.completedActions["appUninstalls"] = []
-	state.completedActions["driverUninstalls"] = []
-	state.completedActions["appUpgrades"] = []
-	state.completedActions["driverUpgrades"] = []
+	initializeRollbackState("uninstall")
 			
 	for (app in pkg.apps) {
 		if (app.heID != null) {
@@ -523,12 +492,7 @@ def prefPkgUninstallComplete() {
 
 	}
 	state.manifests.remove(pkgUninstall)
-	complete()
-	return dynamicPage(name: "prefPkgUninstallComplete", title: "Uninstall complete", install: true, uninstall: true) {
-		section {
-			paragraph "Package successfully removed."
-		}
-	}
+	return complete("Uninstall complete", "The package was successfully removed, click Done.")
 }	
 
 // Update packages pathway
@@ -630,14 +594,7 @@ def prefPkgUpdatesComplete() {
 		def installedManifest = state.manifests[pkg]
 		
 		if (manifest) {
-			state.action = "update"
-			state.completedActions = [:]
-			state.completedActions["appInstalls"] = []
-			state.completedActions["driverInstalls"] = []
-			state.completedActions["appUninstalls"] = []
-			state.completedActions["driverUninstalls"] = []
-			state.completedActions["appUpgrades"] = []
-			state.completedActions["driverUpgrades"] = []
+			initializeRollbackState("update")
 			
 			state.updateManifest = manifest
 			for (app in manifest.apps) {
@@ -690,12 +647,7 @@ def prefPkgUpdatesComplete() {
 		else {
 		}
 	}
-	complete()
-	return dynamicPage(name: "prefPkgUpdatesComplete", title: "Updates complete", install: true, uninstall: true) {
-		section {
-			paragraph "Packages successfully updated."
-		}
-	}
+	return complete("Updates complete", "The packages have been successfully updated, click Done.")
 }
 
 def buildErrorPage(title, message) {
@@ -717,13 +669,23 @@ def clearStateSettings() {
 	app.removeSetting("pkgsToUpdate")
 }
 
+def initializeRollbackState(action) {
+	state.action = action
+	state.completedActions = [:]
+	state.completedActions["appInstalls"] = []
+	state.completedActions["driverInstalls"] = []
+	state.completedActions["appUninstalls"] = []
+	state.completedActions["driverUninstalls"] = []
+	state.completedActions["appUpgrades"] = []
+	state.completedActions["driverUpgrades"] = []
+}
+
 def getInstalledPackages() {
 	def pkgsToList = [:]
 	for (pkg in state.manifests) 
 		pkgsToList[pkg.key] = pkg.value.packageName
 	return pkgsToList
 }
-
 
 def isAppInstalled(manifest, id) {
 	for (app in manifest.apps) {
@@ -827,67 +789,15 @@ def downloadFile(file) {
 	}
 }
 
-def enableOAuth(id) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/app/edit/update",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		body: [
-			id: id,
-			version: getAppVersion(id),
-			oauthEnabled: "true",
-			webServerRedirectUri: "",
-			displayLink: "",
-			_action_update: "Update"
-		],
-		timeout: 300
-	]
-	def result = false
-	httpPost(params) { resp ->
-		result = true
+def getManifestFile(uri) {
+	try
+	{
+		def fileContents = downloadFile(uri)
+		return new groovy.json.JsonSlurper().parseText(fileContents)
 	}
-	return result
-}
-
-def getAppVersion(id) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/app/ajax/code",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		query: [
-			id: id
-		]
-	]
-	def result
-	httpGet(params) { resp ->
-		result = resp.data.version
-	}
-	return result
-}
-
-def getDriverVersion(id) {
-	def params = [
-		uri: "http://127.0.0.1:8080",
-		path: "/driver/ajax/code",
-		requestContentType: "application/x-www-form-urlencoded",
-		headers: [
-			"Cookie": state.cookie
-		],
-		query: [
-			id: id
-		]
-	]
-	def result
-	httpGet(params) { resp ->
-		result = resp.data.version
-	}
-	return result
+	catch (e) {
+		return null
+	}	
 }
 
 def getOptionalAppsFromManifest(manifest) {
@@ -934,17 +844,6 @@ def getInstalledManifest(pkgId) {
 	return null
 }
 
-def getManifestFile(uri) {
-	try
-	{
-		def fileContents = downloadFile(uri)
-		new groovy.json.JsonSlurper().parseText(fileContents)
-	}
-	catch (e) {
-		return null
-	}	
-}
-
 def verifyHEVersion(versionStr) {
 	def installedVersionParts = location.hub.firmwareVersionString.split(/\./)
 	def requiredVersionParts = versionStr.split(/\./)
@@ -982,10 +881,6 @@ def newVersionAvailable(versionStr, installedVersionStr) {
 	return false
 }
 
-
-
-
-
 def login() {
 	if (hpmSecurity)
     {
@@ -1009,60 +904,6 @@ def login() {
             state.cookie = resp?.headers?.'Set-Cookie'?.split(';')?.getAt(0)
         }
 	}
-}
-
-def getAppSource(id) {
-	try
-	{
-		def params = [
-			uri: "http://127.0.0.1:8080",
-			path: "/app/ajax/code",
-			requestContentType: "application/x-www-form-urlencoded",
-			headers: [
-				"Cookie": state.cookie
-			],
-			query: [
-				id: id
-			],
-			timeout: 300
-		]
-		def result
-		httpGet(params) { resp ->
-			result = resp.data.source
-		}
-		return result
-	}
-	catch (e) {
-		log.error "Error retrieving app source: ${e}"
-	}
-	return null	
-}
-
-def getDriverSource(id) {
-	try
-	{
-		def params = [
-			uri: "http://127.0.0.1:8080",
-			path: "/driver/ajax/code",
-			requestContentType: "application/x-www-form-urlencoded",
-			headers: [
-				"Cookie": state.cookie
-			],
-			query: [
-				id: id
-			],
-			timeout: 300
-		]
-		def result
-		httpGet(params) { resp ->
-			result = resp.data.source
-		}
-		return result
-	}
-	catch (e) {
-		log.error "Error retrieving driver source: ${e}"
-	}
-	return null	
 }
 
 // App installation methods
@@ -1155,6 +996,77 @@ def uninstallApp(id) {
 	}
 }
 
+def enableOAuth(id) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/app/edit/update",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		body: [
+			id: id,
+			version: getAppVersion(id),
+			oauthEnabled: "true",
+			webServerRedirectUri: "",
+			displayLink: "",
+			_action_update: "Update"
+		],
+		timeout: 300
+	]
+	def result = false
+	httpPost(params) { resp ->
+		result = true
+	}
+	return result
+}
+
+def getAppSource(id) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/app/ajax/code",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			query: [
+				id: id
+			],
+			timeout: 300
+		]
+		def result
+		httpGet(params) { resp ->
+			result = resp.data.source
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error retrieving app source: ${e}"
+	}
+	return null	
+}
+
+def getAppVersion(id) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/app/ajax/code",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		query: [
+			id: id
+		]
+	]
+	def result
+	httpGet(params) { resp ->
+		result = resp.data.version
+	}
+	return result
+}
+
 // Driver installation methods
 def installDriver(driverCode) {
 	try
@@ -1245,14 +1157,65 @@ def uninstallDriver(id) {
 		log.error "Error uninstalling driver: ${e}"
 		return false
 	}
-
 }
 
-def complete() {
+def getDriverSource(id) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/driver/ajax/code",
+			requestContentType: "application/x-www-form-urlencoded",
+			headers: [
+				"Cookie": state.cookie
+			],
+			query: [
+				id: id
+			],
+			timeout: 300
+		]
+		def result
+		httpGet(params) { resp ->
+			result = resp.data.source
+		}
+		return result
+	}
+	catch (e) {
+		log.error "Error retrieving driver source: ${e}"
+	}
+	return null	
+}
+
+def getDriverVersion(id) {
+	def params = [
+		uri: "http://127.0.0.1:8080",
+		path: "/driver/ajax/code",
+		requestContentType: "application/x-www-form-urlencoded",
+		headers: [
+			"Cookie": state.cookie
+		],
+		query: [
+			id: id
+		]
+	]
+	def result
+	httpGet(params) { resp ->
+		result = resp.data.version
+	}
+	return result
+}
+
+def complete(title, message) {
 	state.action = null
 	state.completedActions = null
 	state.updateManifest = null
 	clearStateSettings()
+	
+	return dynamicPage(name: "prefComplete", title: title, install: true, uninstall: true) {
+		section {
+			paragraph message
+		}
+	}
 }
 
 def rollback(error) {
