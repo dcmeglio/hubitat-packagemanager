@@ -24,6 +24,9 @@ preferences {
     page(name: "prefMain")
 	page(name: "prefOptions")
     page(name: "prefPkgInstall")
+	page(name: "prefPkgInstallUrl")
+	page(name: "prefPkgInstallRepository")
+	page(name: "prefPkgInstallRepositoryChoose")
 	page(name: "prefPkgModify")
     page(name: "prefPkgUpdate")
 	page(name: "prefPkgUninstall")
@@ -38,6 +41,12 @@ preferences {
 	page(name: "prefPkgVerifyUpdates")
 	page(name: "prefPkgUpdatesComplete")
 }
+
+import groovy.transform.Field
+@Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
+@Field static List categories = [] 
+@Field static List allPackages = []
+@Field static groovy.json.internal.LazyMap listOfRepositories = [:]
 
 def installed() {
     initialize()
@@ -72,7 +81,7 @@ def prefMain() {
 	}
 }
 def prefOptions() {
-	return dynamicPage(name: "prefMain", title: "Package Options", install: true, uninstall: true) {
+	return dynamicPage(name: "prefMain", title: "Package Options", install: true, uninstall: false) {
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package")
@@ -85,18 +94,102 @@ def prefOptions() {
 
 // Install a package pathway
 def prefPkgInstall() {
-	return dynamicPage(name: "prefPkgInstall", title: "Install a Package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgInstall", title: "Install a Package", install: true, uninstall: false) {
+		section {
+			paragraph "How would you like to install this package?"
+			href(name: "prefPkgInstallRepository", title: "From a Repository", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository")
+			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package")
+			
+		}
+	}
+}
+
+def prefPkgInstallUrl() {
+	return dynamicPage(name: "prefPkgInstallUrl", title: "Install a Package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
 			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install"
 		}
 	}
 }
 
+def prefPkgInstallRepository() {
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
+	}
+	if (atomicState.inProgress == null) {
+		atomicState.inProgress = true
+		runInMillis(1,performRepositoryRefresh)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefPkgInstallRepository", title: "Install a Package", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
+			section {
+				paragraph "Refreshing repositories... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+		}
+	}
+	else {
+		return dynamicPage(name: "prefPkgInstallRepository", title: "Choose a category", nextPage: "prefPkgInstallRepositoryChoose", install: false, uninstall: false) {
+			section {
+				input "pkgCategory", "enum", options: categories, required: true
+			}
+		}
+	}	
+}
+
+def performRepositoryRefresh() {
+	allPackages = []
+	categories = []
+	setBackgroundStatusMessage("Refreshing repository list")
+	listOfRepositories = getJSONFile(repositoryListing)
+	for (repo in listOfRepositories.repositories) {
+		setBackgroundStatusMessage("Refreshing ${repo.name}")
+		def fileContents = getJSONFile(repo.location)
+		if (!fileContents)
+			return triggerError("Error Refreshing Repository","Error refreshing ${repo.name}")
+		for (pkg in fileContents.packages) {
+			def pkgDetails = [
+				repository: repo,
+				author: fileContents.author,
+				githubUrl: fileContents.gitHubUrl,
+				payPalUrl: fileContents.payPalUrl,
+				name: pkg.name,
+				description: pkg.description,
+				location: pkg.location,
+				category: pkg.category
+			]
+			allPackages << pkgDetails
+			if (!categories.contains(pkgDetails.category))
+				categories << pkgDetails.category
+		}
+	}
+	categories = categories.sort()
+	atomicState.inProgress = false
+}
+
+def prefPkgInstallRepositoryChoose() {
+	atomicState.statusMessage = ""
+	atomicState.inProgress = null
+	atomicState.error = null
+	atomicState.errorTitle = null
+	atomicState.errorMessage = null
+	def matchingPackages = [:]
+	for (pkg in allPackages) {
+		if (pkg.category == pkgCategory)
+			matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
+	}
+	return dynamicPage(name: "prefPkgInstallRepositoryChoose", title: "Choose a package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
+		section {
+			input "pkgInstall", "enum", options: matchingPackages, required: true
+		}
+	}	
+}
+
 def prefInstallChoices() {
 	if (state.manifests == null)
 		state.manifests = [:]
-    def manifest = getManifestFile(pkgInstall)
-	
+    def manifest = getJSONFile(pkgInstall)
+	log.debug pkgInstall
 	if (manifest == null) {
 		return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package or does not exist.")
 	}
@@ -114,7 +207,7 @@ def prefInstallChoices() {
 		def title = "Choose the components to install"
 		if (apps.size() == 0 && drivers.size() == 0)
 			title = "Ready to install"
-		state.manifests[pkgInstall] = manifest
+		
 		return dynamicPage(name: "prefInstallChoices", title: title, nextPage: "prefInstallVerify", install: false, uninstall: false) {
 			section {
 				if (apps.size() > 0 || drivers.size() > 0)
@@ -131,6 +224,8 @@ def prefInstallChoices() {
 }
 
 def prefInstallVerify() {
+	def manifest = getJSONFile(pkgInstall)
+	state.manifests[pkgInstall] = manifest
     return dynamicPage(name: "prefInstallVerify", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false) {
 		section {
 			paragraph "Click the next button to install your selections. This may take some time..."
@@ -623,7 +718,7 @@ def performUpdateCheck() {
 
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
-		def manifest = getManifestFile(pkg.key)
+		def manifest = getJSONFile(pkg.key)
 		
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
@@ -718,7 +813,7 @@ def performUpdates() {
 	def driverFiles = [:]
 	
 	for (pkg in pkgsToUpdate) {
-		def manifest = getManifestFile(pkg)
+		def manifest = getJSONFile(pkg)
 		def installedManifest = state.manifests[pkg]
 		
 		downloadedManifests[pkg] = manifest
@@ -854,6 +949,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("driversToModify")
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
+	app.removeSetting("pkgCategory")
 	state.needsUpdate = [:]
 	state.specificPackageItemsToUpgrade = [:]
 	if (clearProgress) {
@@ -985,7 +1081,7 @@ def downloadFile(file) {
 	}
 }
 
-def getManifestFile(uri) {
+def getJSONFile(uri) {
 	try
 	{
 		def fileContents = downloadFile(uri)
