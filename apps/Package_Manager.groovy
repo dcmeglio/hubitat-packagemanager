@@ -192,6 +192,8 @@ def prefInstall() {
 	state.completedActions["driverInstalls"] = []
 	state.completedActions["appUninstalls"] = []
 	state.completedActions["driverUninstalls"] = []
+	state.completedActions["appUpgrades"] = []
+	state.completedActions["driverUpgrades"] = []
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
 		def id = installApp(appFiles[requiredApp.value.location])
@@ -397,6 +399,8 @@ def prefMakePackageChanges() {
 	state.completedActions["driverInstalls"] = []
 	state.completedActions["appUninstalls"] = []
 	state.completedActions["driverUninstalls"] = []
+	state.completedActions["appUpgrades"] = []
+	state.completedActions["driverUpgrades"] = []
 	for (appToInstall in state.appsToInstall) {
 		def app = getAppById(manifest, appToInstall)
 		def id = installApp(appFiles[app.location])
@@ -491,6 +495,8 @@ def prefPkgUninstallComplete() {
 	state.completedActions["driverInstalls"] = []
 	state.completedActions["appUninstalls"] = []
 	state.completedActions["driverUninstalls"] = []
+	state.completedActions["appUpgrades"] = []
+	state.completedActions["driverUpgrades"] = []
 			
 	for (app in pkg.apps) {
 		if (app.heID != null) {
@@ -571,11 +577,13 @@ def prefPkgUpdatesComplete() {
 	def downloadedManifests = [:]
 	def appFiles = [:]
 	def driverFiles = [:]
+	
 	for (pkg in pkgsToUpdate) {
 		def manifest = getManifestFile(pkg)
 		def installedManifest = state.manifests[pkg]
 		
 		downloadedManifests[pkg] = manifest
+
 		if (manifest) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
@@ -620,27 +628,59 @@ def prefPkgUpdatesComplete() {
 		def installedManifest = state.manifests[pkg]
 		
 		if (manifest) {
+			state.action = "update"
+			state.completedActions = [:]
+			state.completedActions["appInstalls"] = []
+			state.completedActions["driverInstalls"] = []
+			state.completedActions["appUninstalls"] = []
+			state.completedActions["driverUninstalls"] = []
+			state.completedActions["appUpgrades"] = []
+			state.completedActions["driverUpgrades"] = []
+			
+			state.updateManifest = manifest
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					app.heID = getAppById(installedManifest, app.id).heID
-					upgradeApp(app.heID, appFiles[app.location])
-					if (app.oauth)
-						enableOAuth(app.heID)					
+					def sourceCode = getAppSource(app.heID)
+					
+					if (upgradeApp(app.heID, appFiles[app.location])) {
+						state.completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
+						if (app.oauth)
+							enableOAuth(app.heID)
+					}
+					else
+						return rollback("Failed to upgrade app ${app.location}")
 				}
 				else if (app.required) {
-					app.heID = installApp(appFiles[app.location])
-					if (app.oauth)
-						enableOAuth(app.heID)
+					def id = installApp(appFiles[app.location])
+					if (id != null) {
+						app.heID = id
+						if (app.oauth)
+							enableOAuth(app.heID)
+					}
+					else
+						return rollback("Failed to install app ${app.location}")
 				}
 			}
 			
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					driver.heID = getDriverById(installedManifest, driver.id).heID
-					upgradeDriver(driver.heID, driverFiles[driver.location])	
+					def sourceCode = getDriverSource(driver.heID)
+
+					if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
+						state.completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
+					}
+					else
+						return rollback("Failed to upgrade driver ${driver.location}")
 				}
 				else if (driver.required) {
-					driver.heID = installDriver(driverFiles[driver.location])
+					def id = installDriver(driverFiles[driver.location])
+					if (id != null) {
+						driver.heID = id
+					}
+					else
+						return rollback("Failed to install driver ${driver.location}")
 				}
 			}
 			state.manifests[pkg] = manifest
@@ -1247,13 +1287,16 @@ def rollback(error) {
 		manifest = getInstalledManifest(pkgModify)
 	else if (state.action == "uninstall")
 		manifest = getInstalledManifest(pkgUninstall)
-	if (state.action == "install" || state.action == "modify") {
+	else if (state.action == "update")
+		manifest = state.updateManifest
+		
+	if (state.action == "install" || state.action == "modify" || state.action == "update") {
 		for (installedApp in state.completedActions["appInstalls"])
 			uninstallApp(installedApp)
 		for (installedDriver in state.completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
 	}
-	if (state.action == "modify") {
+	if (state.action == "modify" || state.action == "update") {
 		for (installedApp in state.completedActions["appInstalls"])
 			getAppByHEId(manifest, installedApp).heID = null
 		for (installedDriver in state.completedActions["driverInstalls"])
@@ -1272,6 +1315,18 @@ def rollback(error) {
 			getDriverById(manifest, uninstalledDriver.id).heID = newHeID
 		}
 	}
+	if (state.action == "update") {
+		for (upgradedApp in state.completedActions["appUpgrades"]) {
+			upgradeApp(upgradedApp.heID,upgradedApp.source)
+		}
+		for (upgradedDriver in state.completedActions["driverUpgrades"]) {
+			upgradeDriver(upgradedDriver.heID,upgradedDriver.source)
+		}
+	}
+	state.action = null
+	state.completedActions = null
+	state.updateManifest = null
+	
 	return buildErrorPage("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
 }
 
