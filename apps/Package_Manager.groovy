@@ -619,6 +619,7 @@ def prefPkgUpdate() {
 // Update packages pathway
 def performUpdateCheck() {
 	state.needsUpdate = [:]
+	state.specificPackageItemsToUpgrade = [:]
 
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
@@ -626,6 +627,35 @@ def performUpdateCheck() {
 		
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
+		} 
+		else {
+			def appOrDriverNeedsUpdate = false
+			for (app in manifest.apps) {
+				def installedApp = getAppById(state.manifests[pkg.key], app.id)
+				if (app.version != null && installedApp.version != null) {
+					if (newVersionAvailable(app.version, installedApp.version)) {
+						if (!appOrDriverNeedsUpdate) // Only add a package to the list once
+							state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+						appOrDriverNeedsUpdate = true
+						if (state.specificPackageItemsToUpgrade[pkg.key] == null)
+							state.specificPackageItemsToUpgrade[pkg.key] = []
+						state.specificPackageItemsToUpgrade[pkg.key] << app.id
+					}
+				}
+			}
+			for (driver in manifest.drivers) {
+				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
+				if (driver.version != null && installedDriver.version != null) {
+					if (newVersionAvailable(driver.version, installedDriver.version)) {
+						if (!appOrDriverNeedsUpdate) // Only add a package to the list once
+							state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+						appOrDriverNeedsUpdate = true
+						if (state.specificPackageItemsToUpgrade[pkg.key] == null)
+							state.specificPackageItemsToUpgrade[pkg.key] = []
+						state.specificPackageItemsToUpgrade[pkg.key] << driver.id
+					}
+				}
+			}
 		}
 	}
 	atomicState.inProgress = false
@@ -673,6 +703,12 @@ def prefPkgUpdatesComplete() {
 	}
 }
 
+def shouldUpgrade(pkg, id) {
+	
+	if (state.specificPackageItemsToUpgrade[pkg] == null)
+		return true
+	return state.specificPackageItemsToUpgrade[pkg].contains(id)
+}
 
 def performUpdates() {
 	login()
@@ -690,12 +726,14 @@ def performUpdates() {
 		if (manifest) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
-					setBackgroundStatusMessage("Downloading ${app.name}")
-					def fileContents = downloadFile(app.location)
-					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+					if (shouldUpgrade(pkg, app.id)) {
+						setBackgroundStatusMessage("Downloading ${app.name}")
+						def fileContents = downloadFile(app.location)
+						if (fileContents == null) {
+							return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+						}
+						appFiles[app.location] = fileContents	
 					}
-					appFiles[app.location] = fileContents					
 				}
 				else if (app.required) {
 					setBackgroundStatusMessage("Downloading ${app.name}")
@@ -708,12 +746,14 @@ def performUpdates() {
 			}
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
-					setBackgroundStatusMessage("Downloading ${driver.name}")
-					def fileContents = downloadFile(driver.location)
-					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+					if (shouldUpgrade(pkg, driver.id)) {
+						setBackgroundStatusMessage("Downloading ${driver.name}")
+						def fileContents = downloadFile(driver.location)
+						if (fileContents == null) {
+							return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+						}
+						driverFiles[driver.location] = fileContents
 					}
-					driverFiles[driver.location] = fileContents
 				}
 				else if (driver.required) {
 					setBackgroundStatusMessage("Downloading ${driver.name}")
@@ -740,16 +780,18 @@ def performUpdates() {
 			state.updateManifest = manifest
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
-					app.heID = getAppById(installedManifest, app.id).heID
-					def sourceCode = getAppSource(app.heID)
-					setBackgroundStatusMessage("Upgrading ${app.name}")
-					if (upgradeApp(app.heID, appFiles[app.location])) {
-						state.completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
-						if (app.oauth)
-							enableOAuth(app.heID)
+					if (shouldUpgrade(pkg, app.id)) {
+						app.heID = getAppById(installedManifest, app.id).heID
+						def sourceCode = getAppSource(app.heID)
+						setBackgroundStatusMessage("Upgrading ${app.name}")
+						if (upgradeApp(app.heID, appFiles[app.location])) {
+							state.completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
+							if (app.oauth)
+								enableOAuth(app.heID)
+						}
+						else
+							return rollback("Failed to upgrade app ${app.location}")
 					}
-					else
-						return rollback("Failed to upgrade app ${app.location}")
 				}
 				else if (app.required) {
 					setBackgroundStatusMessage("Installing ${app.name}")
@@ -766,14 +808,16 @@ def performUpdates() {
 			
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
-					driver.heID = getDriverById(installedManifest, driver.id).heID
-					def sourceCode = getDriverSource(driver.heID)
-					setBackgroundStatusMessage("Upgrading ${driver.name}")
-					if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
-						state.completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
+					if (shouldUpgrade(pkg, driver.id)) {
+						driver.heID = getDriverById(installedManifest, driver.id).heID
+						def sourceCode = getDriverSource(driver.heID)
+						setBackgroundStatusMessage("Upgrading ${driver.name}")
+						if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
+							state.completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
+						}
+						else
+							return rollback("Failed to upgrade driver ${driver.location}")
 					}
-					else
-						return rollback("Failed to upgrade driver ${driver.location}")
 				}
 				else if (driver.required) {
 					setBackgroundStatusMessage("Installing ${driver.name}")
@@ -811,6 +855,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
 	state.needsUpdate = [:]
+	state.specificPackageItemsToUpgrade = [:]
 	if (clearProgress) {
 		atomicState.statusMessage = ""
 		atomicState.inProgress = null
