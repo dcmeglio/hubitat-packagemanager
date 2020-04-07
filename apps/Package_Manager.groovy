@@ -190,6 +190,8 @@ def prefInstall() {
 	state.completedActions = [:]
 	state.completedActions["appInstalls"] = []
 	state.completedActions["driverInstalls"] = []
+	state.completedActions["appUninstalls"] = []
+	state.completedActions["driverUninstalls"] = []
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
 		def id = installApp(appFiles[requiredApp.value.location])
@@ -482,15 +484,36 @@ def prefPkgUninstallConfirm() {
 
 def prefPkgUninstallComplete() {
 	def pkg = state.manifests[pkgUninstall]
+	
+	state.action = "uninstall"
+	state.completedActions = [:]
+	state.completedActions["appInstalls"] = []
+	state.completedActions["driverInstalls"] = []
+	state.completedActions["appUninstalls"] = []
+	state.completedActions["driverUninstalls"] = []
 			
 	for (app in pkg.apps) {
-		if (app.heID != null)
-			uninstallApp(app.heID)
+		if (app.heID != null) {
+			def sourceCode = getAppSource(app.heID)
+			if (uninstallApp(app.heID))
+			{
+				state.completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
+			}
+			else 
+				return rollback("Failed to uninstall app ${app.location}")
+		}
 	}
 	
 	for (driver in pkg.drivers) {
-		if (driver.heID != null)
-			uninstallDriver(driver.heID)
+		if (driver.heID != null) {
+			def sourceCode = getDriverSource(driver.heID)
+			if (uninstallDriver(driver.heID)) {
+				state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
+			}
+			else 
+				return rollback("Failed to uninstall driver ${driver.location}")
+		}
+
 	}
 	state.manifests.remove(pkgUninstall)
 	
@@ -499,7 +522,7 @@ def prefPkgUninstallComplete() {
 			paragraph "Package successfully removed."
 		}
 	}
-}
+}	
 
 // Update packages pathway
 def prefPkgUpdate() {
@@ -1219,6 +1242,11 @@ def uninstallDriver(id) {
 }
 
 def rollback(error) {
+	def manifest = null
+	if (state.action == "modify")
+		manifest = getInstalledManifest(pkgModify)
+	else if (state.action == "uninstall")
+		manifest = getInstalledManifest(pkgUninstall)
 	if (state.action == "install" || state.action == "modify") {
 		for (installedApp in state.completedActions["appInstalls"])
 			uninstallApp(installedApp)
@@ -1226,14 +1254,18 @@ def rollback(error) {
 			uninstallDriver(installedDriver)
 	}
 	if (state.action == "modify") {
-		def manifest = getInstalledManifest(pkgModify)
 		for (installedApp in state.completedActions["appInstalls"])
 			getAppByHEId(manifest, installedApp).heID = null
 		for (installedDriver in state.completedActions["driverInstalls"])
 			getDriverByHEId(manifest, installedDriver).heID = null
+	}
+	if (state.action == "modify" || state.action == "uninstall") {
 		for (uninstalledApp in state.completedActions["appUninstalls"]) {
 			def newHeID = installApp(uninstalledApp.source)
-			getAppById(manifest, uninstallApp.id).heID = newHeID
+			def app = getAppById(manifest, uninstalledApp.id)
+			if (app.oauth)
+				enableOAuth(newHeID)
+			app.heID = newHeID
 		}
 		for (uninstalledDriver in state.completedActions["driverUninstalls"]) {
 			def newHeID = installDriver(uninstalledDriver.source)
