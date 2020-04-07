@@ -150,7 +150,7 @@ def performRepositoryRefresh() {
 			return triggerError("Error Refreshing Repository","Error refreshing ${repo.name}")
 		for (pkg in fileContents.packages) {
 			def pkgDetails = [
-				repository: repo,
+				repository: repo.name,
 				author: fileContents.author,
 				githubUrl: fileContents.gitHubUrl,
 				payPalUrl: fileContents.payPalUrl,
@@ -190,7 +190,7 @@ def prefInstallChoices() {
 	if (state.manifests == null)
 		state.manifests = [:]
     def manifest = getJSONFile(pkgInstall)
-	log.debug pkgInstall
+	
 	if (manifest == null) {
 		return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package or does not exist.")
 	}
@@ -206,11 +206,23 @@ def prefInstallChoices() {
 		def apps = getOptionalAppsFromManifest(manifest)
 		def drivers = getOptionalDriversFromManifest(manifest)
 		def title = "Choose the components to install"
+		def githubUrl = null
+		def paypalUrl = null
 		if (apps.size() == 0 && drivers.size() == 0)
 			title = "Ready to install"
+		def packageFromRepo = allPackages.find { i -> i.location == pkgInstall}
+
+		if (packageFromRepo != null) {
+			githubUrl = packageFromRepo.githubUrl
+			paypalUrl = packageFromRepo.payPalUrl
+		}
 		
 		return dynamicPage(name: "prefInstallChoices", title: title, nextPage: "prefInstallVerify", install: false, uninstall: false) {
 			section {
+				if (githubUrl != null)
+					paragraph "Author's Github: <a href='${githubUrl}' target='_blank'>${githubUrl}</a>"
+				if (paypalUrl != null)
+					paragraph "Author's Paypal: <a href='${paypalUrl}' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border=0></a>"
 				if (apps.size() > 0 || drivers.size() > 0)
 					paragraph "You are about to install <b>${manifest.packageName}</b>. This package includes some optional components. Please choose which ones you would like to include below. Click Next when you are ready."
 				else
