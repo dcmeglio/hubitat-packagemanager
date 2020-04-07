@@ -310,7 +310,7 @@ def prefVerifyPackageChanges() {
 	def manifest = getInstalledManifest(pkgModify)
 	for (optApp in appsToModify) {
 		if (!isAppInstalled(manifest,optApp)) {
-			appsToInstallStr += "<li>${getAppNameById(manifest,optApp)}</li>"
+			appsToInstallStr += "<li>${getAppById(manifest,optApp).name}</li>"
 			state.appsToInstall << optApp
 			hasChanges = true
 		}
@@ -318,7 +318,7 @@ def prefVerifyPackageChanges() {
 	appsToInstallStr += "</ul>"
 	for (optDriver in driversToModify) {
 		if (!isDriverInstalled(manifest,optDriver)) {
-			driversToInstallStr += "<li>${getDriverNameById(manifest,optDriver)}</li>"
+			driversToInstallStr += "<li>${getDriverById(manifest,optDriver).name}</li>"
 			state.driversToInstall << optDriver
 			hasChanges = true
 		}
@@ -329,7 +329,7 @@ def prefVerifyPackageChanges() {
 	def installedDrivers = getInstalledOptionalDrivers(manifest)
 	for (installedApp in installedApps) {
 		if (!appsToModify?.contains(installedApp)) {
-			appsToUninstallStr += "<li>${getAppNameById(manifest,installedApp)}</li>"
+			appsToUninstallStr += "<li>${getAppById(manifest,installedApp).name}</li>"
 			state.appsToUninstall << installedApp
 			hasChanges = true
 		}
@@ -338,7 +338,7 @@ def prefVerifyPackageChanges() {
 	
 	for (installedDriver in installedDrivers) {
 		if (!driversToModify?.contains(installedDriver)) {
-			driversToUninstallStr += "<li>${getDriverNameById(manifest,installedDriver)}</li>"
+			driversToUninstallStr += "<li>${getDriverById(manifest,installedDriver).name}</li>"
 			state.driversToUninstall << installedDriver
 			hasChanges = true
 		}
@@ -487,6 +487,7 @@ def prefPkgUninstallConfirm() {
 }
 
 def prefPkgUninstallComplete() {
+	login()
 	def pkg = state.manifests[pkgUninstall]
 	
 	state.action = "uninstall"
@@ -573,6 +574,7 @@ def prefPkgVerifyUpdates() {
 }
 
 def prefPkgUpdatesComplete() {
+	login()
 	// Download all files first to reduce the chances of a network error
 	def downloadedManifests = [:]
 	def appFiles = [:]
@@ -747,24 +749,6 @@ def isDriverInstalled(manifest, id) {
 	return false
 }
 
-def getAppNameById(manifest, id) {
-	for (app in manifest.apps) {
-		if (app.id == id) {
-			return app.name
-		}
-	}
-	return null
-}
-
-def getDriverNameById(manifest, id) {
-	for (driver in manifest.drivers) {
-		if (driver.id == id) {
-			return driver.name
-		}
-	}
-	return null
-}
-
 def getAppById(manifest, id) {
 	for (app in manifest.apps) {
 		if (app.id == id) {
@@ -842,8 +826,6 @@ def downloadFile(file) {
 		return null
 	}
 }
-
-
 
 def enableOAuth(id) {
 	def params = [
