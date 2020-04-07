@@ -105,13 +105,12 @@ def prefInstallChoices() {
 		return buildErrorPage("Package Already Installed", "${pkgInstall} has already been installed. If you would like to look for upgrades, use the Update function.")
 	}
 	
-	def apps = getOptionalAppsFromManifest(manifest)
-	def drivers = getOptionalDriversFromManifest(manifest)
-	
 	if (!verifyHEVersion(manifest.minimumHEVersion)) {
 		return buildErrorPage("Unsupported Hubitat Firmware", "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing.")
 	} 
-	else { 
+	else {
+		def apps = getOptionalAppsFromManifest(manifest)
+		def drivers = getOptionalDriversFromManifest(manifest)
 		def title = "Choose the components to install"
 		if (apps.size() == 0 && drivers.size() == 0)
 			title = "Ready to install"
@@ -153,6 +152,7 @@ def prefInstall() {
 	for (requiredApp in requiredApps) {
 		def fileContents = downloadFile(requiredApp.value.location)
 		if (fileContents == null) {
+			state.manifests[pkgInstall] = null
 			return buildErrorPage("Error downloading file", "An error occurred downloading ${requiredApp.value.location}")
 		}
 		appFiles[requiredApp.value.location] = fileContents
@@ -162,6 +162,7 @@ def prefInstall() {
 		if (matchedApp != null) {
 			def fileContents = downloadFile(matchedApp.location)
 			if (fileContents == null) {
+				state.manifests[pkgInstall] = null
 				return buildErrorPage("Error downloading file", "An error occurred downloading ${matchedApp.location}")
 			}
 			appFiles[matchedApp.location] = fileContents
@@ -170,6 +171,7 @@ def prefInstall() {
 	for (requiredDriver in requiredDrivers) {
 		def fileContents = downloadFile(requiredDriver.value.location)
 		if (fileContents == null) {
+			state.manifests[pkgInstall] = null
 			return buildErrorPage("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}")
 		}
 		driverFiles[requiredDriver.value.location] = fileContents
@@ -180,6 +182,7 @@ def prefInstall() {
 		if (matchedDriver != null) {
 			def fileContents = downloadFile(matchedDriver.location)
 			if (fileContents == null) {
+				state.manifests[pkgInstall] = null
 				return buildErrorPage("Error downloading file", "An error occurred downloading ${matchedDriver.location}")
 			}
 			driverFiles[matchedDriver.location] = fileContents
