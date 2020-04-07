@@ -47,6 +47,7 @@ import groovy.transform.Field
 @Field static List categories = [] 
 @Field static List allPackages = []
 @Field static groovy.json.internal.LazyMap listOfRepositories = [:]
+@Field static groovy.json.internal.LazyMap completedActions = [:]
 
 def installed() {
     initialize()
@@ -961,13 +962,13 @@ def clearStateSettings(clearProgress) {
 
 def initializeRollbackState(action) {
 	state.action = action
-	state.completedActions = [:]
-	state.completedActions["appInstalls"] = []
-	state.completedActions["driverInstalls"] = []
-	state.completedActions["appUninstalls"] = []
-	state.completedActions["driverUninstalls"] = []
-	state.completedActions["appUpgrades"] = []
-	state.completedActions["driverUpgrades"] = []
+	completedActions = [:]
+	completedActions["appInstalls"] = []
+	completedActions["driverInstalls"] = []
+	completedActions["appUninstalls"] = []
+	completedActions["driverUninstalls"] = []
+	completedActions["appUpgrades"] = []
+	completedActions["driverUpgrades"] = []
 }
 
 def getInstalledPackages() {
