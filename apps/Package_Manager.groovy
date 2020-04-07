@@ -227,7 +227,15 @@ def prefInstallChoices() {
 def prefInstallVerify() {
     return dynamicPage(name: "prefInstallVerify", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false) {
 		section {
-			paragraph "Click the next button to install your selections. This may take some time..."
+			def manifest = getJSONFile(pkgInstall)
+			if (manifest.licenseFile) {
+				def license = downloadFile(manifest.licenseFile)
+				paragraph "By clicking next you accept the below license agreement:"
+				paragraph "<textarea rows=20 cols=80 readonly='true'>${license}</textarea>"
+				paragraph "Click next to continue. This make take some time..."
+			}
+			else
+				paragraph "Click the next button to install your selections. This may take some time..."
 		}
 	}
 }
