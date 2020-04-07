@@ -58,7 +58,7 @@ def uninstalled() {
 }
 
 def prefMain() {
-	clearStateSettings()
+	clearStateSettings(true)
     return dynamicPage(name: "prefMain", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: false, uninstall: false) {
 		section {
 			paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
@@ -139,6 +139,25 @@ def prefInstallVerify() {
 }
 
 def prefInstall() {
+	if (atomicState.inProgress == null) {
+		atomicState.inProgress = true
+		runInMillis(1,performInstallation)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefInstall", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
+			section {
+				paragraph "Your installation is currently in progress... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+			
+		}
+	}
+	else {
+		return complete("Installation complete", "The package was sucessfully installed, click Done.")
+	}
+}
+
+def performInstallation() {
 	login()
 	def manifest = state.manifests[pkgInstall]
 	
@@ -150,6 +169,7 @@ def prefInstall() {
 	def requiredDrivers = getRequiredDriversFromManifest(manifest)
 	
 	for (requiredApp in requiredApps) {
+		setBackgroundStatusMessage("Downloading ${requiredApp.value.name}")
 		def fileContents = downloadFile(requiredApp.value.location)
 		if (fileContents == null) {
 			state.manifests[pkgInstall] = null
@@ -160,6 +180,7 @@ def prefInstall() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
+			setBackgroundStatusMessage("Downloading ${matchedApp.name}")
 			def fileContents = downloadFile(matchedApp.location)
 			if (fileContents == null) {
 				state.manifests[pkgInstall] = null
@@ -169,6 +190,7 @@ def prefInstall() {
 		}
 	}
 	for (requiredDriver in requiredDrivers) {
+		setBackgroundStatusMessage("Downloading ${requiredDriver.value.name}")
 		def fileContents = downloadFile(requiredDriver.value.location)
 		if (fileContents == null) {
 			state.manifests[pkgInstall] = null
@@ -180,6 +202,7 @@ def prefInstall() {
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
+			setBackgroundStatusMessage("Downloading ${matchedDriver.name}")
 			def fileContents = downloadFile(matchedDriver.location)
 			if (fileContents == null) {
 				state.manifests[pkgInstall] = null
@@ -192,6 +215,7 @@ def prefInstall() {
 	initializeRollbackState("install")
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
+		setBackgroundStatusMessage("Installing ${requiredApp.value.name}")
 		def id = installApp(appFiles[requiredApp.value.location])
 		if (id == null) {
 			state.manifests[pkgInstall] = null
@@ -205,6 +229,7 @@ def prefInstall() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
+			setBackgroundStatusMessage("Installing ${matchedApp.name}")
 			def id = installApp(appFiles[matchedApp.location])
 			if (id == null) {
 				state.manifests[pkgInstall] = null
@@ -217,6 +242,7 @@ def prefInstall() {
 	}
 	
 	for (requiredDriver in requiredDrivers) {
+		setBackgroundStatusMessage("Installing ${requiredDriver.value.name}")
 		def id = installDriver(driverFiles[requiredDriver.value.location])
 		if (id == null) {
 			state.manifests[pkgInstall] = null
@@ -228,6 +254,7 @@ def prefInstall() {
 	for (driverToInstall in driversToInstall) {
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
+			setBackgroundStatusMessage("Installing ${matchedDriver.name}")
 			def id = installDriver(driverFiles[matchedDriver.location])
 			if (id == null) {
 				state.manifests[pkgInstall] = null
@@ -236,7 +263,7 @@ def prefInstall() {
 			matchedDriver.heID = id
 		}
 	}
-	return complete("Installation complete", "The package was sucessfully installed, click Done.")
+	atomicState.inProgress = false
 }
 
 // Modify a package pathway
@@ -654,14 +681,14 @@ def prefPkgUpdatesComplete() {
 }
 
 def buildErrorPage(title, message) {
-	return dynamicPage(name: "prefError", title: title, install: true, uninstall: true) {
+	return dynamicPage(name: "prefError", title: title, install: true, uninstall: false) {
 		section {
 			paragraph message
 		}
 	}
 }
 
-def clearStateSettings() {
+def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgInstall")
 	app.removeSetting("appsToInstall")
 	app.removeSetting("driversToInstall")
@@ -670,6 +697,10 @@ def clearStateSettings() {
 	app.removeSetting("driversToModify")
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
+	if (clearProgress) {
+		atomicState.statusMessage = ""
+		atomicState.inProgress = null
+	}
 }
 
 def initializeRollbackState(action) {
@@ -1208,13 +1239,24 @@ def getDriverVersion(id) {
 	return result
 }
 
+def setBackgroundStatusMessage(msg) {
+	if (atomicState.statusMessage == null)
+		atomicState.statusMessage = ""
+	log.info msg
+	atomicState.statusMessage += "${msg}<br>"
+}
+
+def getBackgroundStatusMessage() {
+	return atomicState.statusMessage
+}
+
 def complete(title, message) {
 	state.action = null
 	state.completedActions = null
 	state.updateManifest = null
-	clearStateSettings()
+	clearStateSettings(false)
 	
-	return dynamicPage(name: "prefComplete", title: title, install: true, uninstall: true) {
+	return dynamicPage(name: "prefComplete", title: title, install: true, uninstall: false) {
 		section {
 			paragraph message
 		}
