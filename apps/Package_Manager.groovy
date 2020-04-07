@@ -540,7 +540,7 @@ def performModify() {
 		if (id != null)
 		{
 			app.heID = id
-			state.completedActions["appInstalls"] << id
+			completedActions["appInstalls"] << id
 			if (app.oauth)
 				enableOAuth(app.heID)
 		}
@@ -552,7 +552,7 @@ def performModify() {
 		def sourceCode = getDriverSource(app.heID)
 		setBackgroundStatusMessage("Uninstalling ${app.name}")
 		if (uninstallApp(app.heID)) {
-			state.completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
+			completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
 			app.heID = null
 		}
 		else
@@ -575,7 +575,7 @@ def performModify() {
 		def sourceCode = getDriverSource(driver.heID)
 		setBackgroundStatusMessage("Uninstalling ${driver.name}")
 		if (uninstallDriver(driver.heID)) {
-			state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
+			completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 			driver.heID = null
 		}
 		else
@@ -651,7 +651,7 @@ def performUninstall() {
 			setBackgroundStatusMessage("Uninstalling ${app.name}")
 			if (uninstallApp(app.heID))
 			{
-				state.completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
+				completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
 			}
 			else 
 				return rollback("Failed to uninstall app ${app.location}")
@@ -663,7 +663,7 @@ def performUninstall() {
 			def sourceCode = getDriverSource(driver.heID)
 			setBackgroundStatusMessage("Uninstalling ${driver.name}")
 			if (uninstallDriver(driver.heID)) {
-				state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
+				completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 			}
 			else 
 				return rollback("Failed to uninstall driver ${driver.location}")
@@ -879,7 +879,7 @@ def performUpdates() {
 						def sourceCode = getAppSource(app.heID)
 						setBackgroundStatusMessage("Upgrading ${app.name}")
 						if (upgradeApp(app.heID, appFiles[app.location])) {
-							state.completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
+							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							if (app.oauth)
 								enableOAuth(app.heID)
 						}
@@ -907,7 +907,7 @@ def performUpdates() {
 						def sourceCode = getDriverSource(driver.heID)
 						setBackgroundStatusMessage("Upgrading ${driver.name}")
 						if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
-							state.completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
+							completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 						}
 						else
 							return rollback("Failed to upgrade driver ${driver.location}")
@@ -1220,7 +1220,7 @@ def installApp(appCode) {
 		httpPost(params) { resp ->
 			if (resp.headers."Location" != null) {
 				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
-				state.completedActions["appInstalls"] << result
+				completedActions["appInstalls"] << result
 			}
 			else
 				result = null
@@ -1381,7 +1381,7 @@ def installDriver(driverCode) {
 		httpPost(params) { resp ->
 			if (resp.headers."Location" != null) {
 				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
-				state.completedActions["driverInstalls"] << result
+				completedActions["driverInstalls"] << result
 			}
 			else
 				result = null
@@ -1515,7 +1515,7 @@ def triggerError(title, message) {
 
 def complete(title, message) {
 	state.action = null
-	state.completedActions = null
+	completedActions = null
 	state.updateManifest = null
 	clearStateSettings(false)
 	
@@ -1536,40 +1536,40 @@ def rollback(error) {
 		manifest = state.updateManifest
 	setBackgroundStatusMessage("Fatal error occurred, rolling back")
 	if (state.action == "install" || state.action == "modify" || state.action == "update") {
-		for (installedApp in state.completedActions["appInstalls"])
+		for (installedApp in completedActions["appInstalls"])
 			uninstallApp(installedApp)
-		for (installedDriver in state.completedActions["driverInstalls"])
+		for (installedDriver in completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
 	}
 	if (state.action == "modify" || state.action == "update") {
-		for (installedApp in state.completedActions["appInstalls"])
+		for (installedApp in completedActions["appInstalls"])
 			getAppByHEId(manifest, installedApp).heID = null
-		for (installedDriver in state.completedActions["driverInstalls"])
+		for (installedDriver in completedActions["driverInstalls"])
 			getDriverByHEId(manifest, installedDriver).heID = null
 	}
 	if (state.action == "modify" || state.action == "uninstall") {
-		for (uninstalledApp in state.completedActions["appUninstalls"]) {
+		for (uninstalledApp in completedActions["appUninstalls"]) {
 			def newHeID = installApp(uninstalledApp.source)
 			def app = getAppById(manifest, uninstalledApp.id)
 			if (app.oauth)
 				enableOAuth(newHeID)
 			app.heID = newHeID
 		}
-		for (uninstalledDriver in state.completedActions["driverUninstalls"]) {
+		for (uninstalledDriver in completedActions["driverUninstalls"]) {
 			def newHeID = installDriver(uninstalledDriver.source)
 			getDriverById(manifest, uninstalledDriver.id).heID = newHeID
 		}
 	}
 	if (state.action == "update") {
-		for (upgradedApp in state.completedActions["appUpgrades"]) {
+		for (upgradedApp in completedActions["appUpgrades"]) {
 			upgradeApp(upgradedApp.heID,upgradedApp.source)
 		}
-		for (upgradedDriver in state.completedActions["driverUpgrades"]) {
+		for (upgradedDriver in completedActions["driverUpgrades"]) {
 			upgradeDriver(upgradedDriver.heID,upgradedDriver.source)
 		}
 	}
 	state.action = null
-	state.completedActions = null
+	completedActions = null
 	state.updateManifest = null
 	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
 }
