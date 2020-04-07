@@ -435,7 +435,6 @@ def prefMakePackageChanges() {
 		if (uninstallDriver(driver.heID)) {
 			state.completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 			driver.heID = null
-			return rollback("Failed to uninstall driver ${driver.location}")
 		}
 		else
 			return rollback("Failed to uninstall driver ${driver.location}")
