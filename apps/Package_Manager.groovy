@@ -224,8 +224,6 @@ def prefInstallChoices() {
 }
 
 def prefInstallVerify() {
-	def manifest = getJSONFile(pkgInstall)
-	state.manifests[pkgInstall] = manifest
     return dynamicPage(name: "prefInstallVerify", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false) {
 		section {
 			paragraph "Click the next button to install your selections. This may take some time..."
@@ -247,7 +245,6 @@ def prefInstall() {
 				paragraph "Your installation is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
-			
 		}
 	}
 	else {
@@ -257,7 +254,8 @@ def prefInstall() {
 
 def performInstallation() {
 	login()
-	def manifest = state.manifests[pkgInstall]
+	def manifest = getJSONFile(pkgInstall)
+	state.manifests[pkgInstall] = manifest
 	
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
