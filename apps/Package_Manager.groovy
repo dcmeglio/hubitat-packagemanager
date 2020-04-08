@@ -21,7 +21,7 @@ definition(
 	documentationLink: "https://github.com/dcmeglio/hubitat-rebooter/blob/master/README.md")
 
 preferences {
-    page(name: "prefMain")
+    page(name: "prefSettings")
 	page(name: "prefOptions")
     page(name: "prefPkgInstall")
 	page(name: "prefPkgInstallUrl")
@@ -67,28 +67,35 @@ def uninstalled() {
 	unschedule()
 }
 
-def prefMain() {
+def prefSettings(params) {
+	log.debug params
 	clearStateSettings(true)
-    return dynamicPage(name: "prefMain", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: false, uninstall: false) {
-		section {
-			paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
-			input("hpmSecurity", "bool", title: "Is Hub Security enabled?", submitOnChange: true)
-			if (hpmSecurity)
-			{
-				input("hpmUsername", "string", title: "Hub Security username", required: true)
-				input("hpmPassword", "password", title: "Hub Security password", required: true)
+	if (app.getInstallationState() == "COMPLETE" && params?.force != true)
+		return prefOptions()
+	else {
+		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: false, uninstall: false) {
+			section {
+				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
+				input("hpmSecurity", "bool", title: "Is Hub Security enabled?", submitOnChange: true)
+				if (hpmSecurity)
+				{
+					input("hpmUsername", "string", title: "Hub Security username", required: true)
+					input("hpmPassword", "password", title: "Hub Security password", required: true)
+				}
 			}
 		}
 	}
 }
 def prefOptions() {
-	return dynamicPage(name: "prefMain", title: "Package Options", install: true, uninstall: false) {
+	state.installationCom
+	return dynamicPage(name: "prefOptions", title: "Package Options", install: true, uninstall: false) {
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package")
 			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package")
 			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall a package")
             href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates")
+			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings")
 		}
 	}
 }
