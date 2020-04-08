@@ -35,3 +35,49 @@
  When an author releases a new version of a package, to install it, choose the _Update_ option. If updates are available, choose the packages you wish to update and then click _Next_. You will then be able to confirm your selections and install the updates by clicking _Next_.
  
  ![Update Package](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Update1.PNG)
+ 
+ ## Developer Information
+ The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages.
+ 
+ ### Package Manifest 
+ The package manifest is a JSON file that lists the apps and drivers that are part of your package. Note that the manifest requires you to create GUIDs to uniquely identify your apps and drivers. You can use [guidgenerator.com](https://guidgenerator.com/) to generate your own.
+ 
+ Within the root of the JSON, define the _packageName_ which will be displayed to the user, the _minimumHEVersion_ which is the minimum firmware version supported (use 0 if you support all versions), _author_ to list the author name, and _dateReleased_ to indicate when this release was made.
+ 
+ Next, if your package includes apps, create an array called _apps_. Each app consists of an _id_ which is a GUID, a _name_ which is the name of the app, and _location_ which specifies a URL where the Groovy file for the app will be found. Additionally, you can specify two boolean values. If the app is required, set _required_ to true. If it is optional, set _required_ to false. Optional apps will allow the user to choose whether or not to install them when adding the package. Finally, if the app requires OAuth access, set _oauth_ to true, otherwise set it to false.
+ 
+  Finally, if your package includes drivers, create an array called _drivers_. Each driver consists of an _id_ which is a GUID, a _name_ which is the name of the driver, and _location_ which specifies a URL where the Groovy file for the driver will be found. Additionally, you can specify a boolean value to indicate if the driver is required. set _required_ to true if required, or if it is optional, set _required_ to false. Below is an example of a package manifest:
+ 
+ #### Example
+ ```json
+ {
+	"packageName": "My Package",
+	"minimumHEVersion": "2.1.9",
+	"author": "Dominick Meglio",
+	"version": "1.0",
+	"dateReleased": "2020-04-07",
+	"apps" : [
+		{
+			"id" : "67d9cc01-a5cb-453c-832a-e78c5a6b978b",
+			"name": "The App",
+			"location": "https://raw.githubusercontent.com/app.groovy",
+			"required": true,
+			"oauth": false
+		}
+	],
+	"drivers" : [
+		{
+			"id": "22597029-98db-490b-b8b9-c23b972ee5f2",
+			"name": "Required Driver",
+			"location": "https://raw.githubusercontent.com/driver1.groovy",
+			"required": true
+		},
+		{
+			"id": "e012ffff-7959-466b-a2ae-3181a33010f9",
+			"name": "Optional Driver",
+			"location": "https://raw.githubusercontent.com/driver2.groovy",
+			"required": false
+		}
+	]
+}
+ ```
