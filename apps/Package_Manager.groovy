@@ -68,6 +68,8 @@ def uninstalled() {
 }
 
 def prefSettings(params) {
+	if (state.manifests == null)
+		state.manifests = [:]
 	clearStateSettings(true)
 	logDebug "Refreshing repository list"
 	
@@ -201,8 +203,6 @@ def prefPkgInstallRepositoryChoose() {
 
 def prefInstallChoices() {
 	logDebug "Manifest chosen ${pkgInstall}"
-	if (state.manifests == null)
-		state.manifests = [:]
     def manifest = getJSONFile(pkgInstall)
 	
 	if (manifest == null) {
