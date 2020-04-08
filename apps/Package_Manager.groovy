@@ -59,7 +59,7 @@ def updated() {
 }
 
 def initialize() {
-
+	schedule("01 00 00 ? * *", checkForUpdates)
 }
 
 def uninstalled() {
@@ -773,7 +773,6 @@ def performUpdateCheck() {
 		}
 	}
 	atomicState.inProgress = false
-
 }
 
 def prefPkgVerifyUpdates() {
@@ -785,6 +784,11 @@ def prefPkgVerifyUpdates() {
 	atomicState.errorMessage = null
 
 	def updatesToInstall = "<ul>"
+	
+	if (pkgsToUpdate.size() == state.needsUpdate.size())
+		app.updateLabel("Hubitat Package Manager")
+	else
+		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 	
 	for (pkg in pkgsToUpdate) {
 		updatesToInstall += "<li>${state.manifests[pkg].packageName}</li>"
@@ -957,6 +961,47 @@ def buildErrorPage(title, message) {
 			paragraph message
 		}
 	}
+}
+
+def checkForUpdates() {
+	def updates = false
+	for (pkg in state.manifests) {
+		def manifest = getJSONFile(pkg.key)
+		
+		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
+			updates = true
+			break
+		} 
+		else {
+			for (app in manifest.apps) {
+				def installedApp = getAppById(state.manifests[pkg.key], app.id)
+				if (app.version != null && installedApp.version != null) {
+					if (newVersionAvailable(app.version, installedApp.version)) {
+						updates = true
+						break
+					}
+				}
+			}
+			if (updates)
+				break
+			for (driver in manifest.drivers) {
+				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
+				if (driver.version != null && installedDriver.version != null) {
+					if (newVersionAvailable(driver.version, installedDriver.version)) {
+						updates = true
+						break
+					}
+				}
+			}
+			if (updates)
+				break
+		}
+	}
+	if (!updates)
+		app.updateLabel("Hubitat Package Manager")
+	else
+		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+
 }
 
 def clearStateSettings(clearProgress) {
