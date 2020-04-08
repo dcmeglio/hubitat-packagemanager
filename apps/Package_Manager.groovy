@@ -68,8 +68,11 @@ def uninstalled() {
 }
 
 def prefSettings(params) {
-	log.debug params
 	clearStateSettings(true)
+	logDebug "Refreshing repository list"
+	
+	listOfRepositories = getJSONFile(repositoryListing)
+	installHPMManifest()
 	if (app.getInstallationState() == "COMPLETE" && params?.force != true)
 		return prefOptions()
 	else {
@@ -151,8 +154,7 @@ def prefPkgInstallRepository() {
 def performRepositoryRefresh() {
 	allPackages = []
 	categories = []
-	setBackgroundStatusMessage("Refreshing repository list")
-	listOfRepositories = getJSONFile(repositoryListing)
+
 	for (repo in listOfRepositories.repositories) {
 		setBackgroundStatusMessage("Refreshing ${repo.name}")
 		def fileContents = getJSONFile(repo.location)
@@ -1666,9 +1668,87 @@ def rollback(error) {
 	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
 }
 
+def installHPMManifest()
+{
+	if (state.manifests[listOfRepositories.hpm.location] == null) {
+		logDebug "Grabbing list of installed apps"
+		login()
+		def appsInstalled = getAppList()
+		
+		logDebug "Installing HPM Manifest"
+		def manifest = getJSONFile(listOfRepositories.hpm.location)
+		if (manifest == null) {
+			log.error "Error installing HPM manifest"
+			return false
+		}
+		def appId = appsInstalled.find { i -> i.title == "Hubitat Package Manager" && i.namespace == "dcm.hpm"}?.id
+		if (appId != null) {
+			manifest.apps[0].heID = appId
+			state.manifests[listOfRepositories.hpm.location] = manifest
+		}
+		else
+			log.error "Unable to get the app ID of the package manager"
+	}
+	return true
+}
+
 def logDebug(msg) {
 	// For initial releases, hard coding debug mode to on.
     //if (settings?.debugOutput) {
 		log.debug msg
 	//}
+}
+
+// Thanks to gavincampbell for the code below!
+def getAppList() {
+    def params = [
+    	uri: "http://127.0.0.1:8080/app/list",
+        textParser: true,
+        headers: [
+			Cookie: state.cookie
+		]
+      ]
+    
+	def result = []
+    try {
+        httpGet(params) { resp ->     
+            def matcherText = resp.data.text.replace("\n","").replace("\r","")
+            def matcher = matcherText.findAll(/(<tr class="app-row" data-app-id="[^<>]+">.*?<\/tr>)/).each {
+                def allFields = it.findAll(/(<td .*?<\/td>)/) // { match,f -> return f } 
+                def id = it.find(/data-app-id="([^"]+)"/) { match,i -> return i.trim() }
+                def title = allFields[0].find(/title="([^"]+)/) { match,t -> return t.trim() }
+                def namespace = allFields[1].find(/>([^"]+)</) { match,ns -> return ns.trim() }
+                result += [id:id,title:title,namespace:namespace]
+            }
+        }
+    } catch (e) {
+		log.error "Error retrieving installed apps: ${e}"
+    }
+	return result
+}
+
+def getDriverList() {
+    def params = [
+    	uri: "http://127.0.0.1:8080/driver/list",
+        textParser: true,
+	    headers: [
+			Cookie: state.cookie
+		]
+      ]
+    def result = []
+    try {
+        httpGet(params) { resp ->
+            def matcherText = resp.data.text.replace("\n","").replace("\r","")
+            def matcher = matcherText.findAll(/(<tr class="driver-row" data-app-id="[^<>]+">.*?<\/tr>)/).each {
+                def allFields = it.findAll(/(<td .*?<\/td>)/) // { match,f -> return f } 
+                def title = it.find(/title="([^"]+)/) { match,t -> return t }
+                def id = it.find(/data-app-id="([^"]+)"/) { match,i -> return i.trim() }
+                def namespace = allFields[1].find(/>([^"]+)</) { match,ns -> return ns.trim() }
+                result += [id:id,title:title,namespace:namespace]
+			}
+        }
+    } catch (e) {
+        log.error "Error retrieving installed drivers: ${e}"
+    }
+	return result
 }
