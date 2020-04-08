@@ -1,0 +1,15 @@
+{
+	"packageName": "Hubitat Package Manager",
+	"minimumHEVersion": "2.1.9",
+	"author": "Dominick Meglio",
+	"version": "0.1",
+	"dateReleased": "2020-04-08",
+	"apps" : [
+		{
+			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",
+			"name": "Hubitat Package Manager",
+			"location": "https://raw.githubusercontent.com/dcmeglio/hubitat-packagemanager/master/apps/Package_Manager.groovy",
+			"required": true
+		}
+	]
+}
