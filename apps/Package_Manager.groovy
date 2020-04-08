@@ -95,6 +95,7 @@ def prefOptions() {
 
 // Install a package pathway
 def prefPkgInstall() {
+	logDebug "prefPkg"
 	return dynamicPage(name: "prefPkgInstall", title: "Install a Package", install: true, uninstall: false) {
 		section {
 			paragraph "How would you like to install this package?"
@@ -106,6 +107,7 @@ def prefPkgInstall() {
 }
 
 def prefPkgInstallUrl() {
+	logDebug "Install by URL"
 	return dynamicPage(name: "prefPkgInstallUrl", title: "Install a Package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
 			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install"
@@ -118,6 +120,7 @@ def prefPkgInstallRepository() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "Install by Repository"
 		atomicState.inProgress = true
 		runInMillis(1,performRepositoryRefresh)
 	}
@@ -179,6 +182,7 @@ def prefPkgInstallRepositoryChoose() {
 		if (pkg.category == pkgCategory)
 			matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
 	}
+	logDebug "Chose category ${pkgCategory}"
 	return dynamicPage(name: "prefPkgInstallRepositoryChoose", title: "Choose a package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
 			input "pkgInstall", "enum", options: matchingPackages, required: true
@@ -187,6 +191,7 @@ def prefPkgInstallRepositoryChoose() {
 }
 
 def prefInstallChoices() {
+	logDebug "Manifest chosen ${pkgInstall}"
 	if (state.manifests == null)
 		state.manifests = [:]
     def manifest = getJSONFile(pkgInstall)
@@ -237,6 +242,7 @@ def prefInstallChoices() {
 }
 
 def prefInstallVerify() {
+	logDebug "Options chosen"
     return dynamicPage(name: "prefInstallVerify", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false) {
 		section {
 			def manifest = getJSONFile(pkgInstall)
@@ -257,6 +263,7 @@ def prefInstall() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "Install beginning"
 		atomicState.inProgress = true
 		runInMillis(1,performInstallation)
 	}
@@ -385,6 +392,7 @@ def performInstallation() {
 
 // Modify a package pathway
 def prefPkgModify() {
+	logDebug "Modify package chosen"
 	def pkgsToList = getInstalledPackages()
 	return dynamicPage(name: "prefPkgModify", title: "Choose the package to modify", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
 		section {
@@ -432,6 +440,7 @@ def prefPkgModifyChoices() {
 }
 
 def prefVerifyPackageChanges() {
+	logDebug "Modification choices made"
 	def appsToUninstallStr = "<ul>"
 	def appsToInstallStr = "<ul>"
 	def driversToUninstallStr = "<ul>"
@@ -508,6 +517,7 @@ def prefMakePackageChanges() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "Executing modify"
 		atomicState.inProgress = true
 		runInMillis(1,performModify)
 	}
@@ -606,6 +616,7 @@ def performModify() {
 
 // Uninstall a package pathway
 def prefPkgUninstall() {
+	logDebug "Uninstall chosen"
 	def pkgsToList = getInstalledPackages()
 
 	return dynamicPage(name: "prefPkgUninstall", title: "Choose the package to uninstall", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
@@ -616,6 +627,7 @@ def prefPkgUninstall() {
 }
 
 def prefPkgUninstallConfirm() {
+	logDebug "Confirming uninstall of ${pkgUninstall}"
 	return dynamicPage(name: "prefPkgUninstallConfirm", title: "Choose the package to uninstall", nextPage: "prefUninstall", install: false, uninstall: false) {
 		section {
 			paragraph "The following apps and drivers will be removed:"
@@ -642,6 +654,7 @@ def prefUninstall() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "Performing uninstall"
 		atomicState.inProgress = true
 		runInMillis(1,performUninstall)
 	}
@@ -699,6 +712,7 @@ def prefPkgUpdate() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "Update chosen"
 		atomicState.inProgress = true
 		runInMillis(1,performUpdateCheck)
 	}
@@ -713,6 +727,7 @@ def prefPkgUpdate() {
 	}
 	else {
 		if (state.needsUpdate.size() > 0) {
+			logDebug "Updates available"
 			return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
 				section {
 					paragraph "Updates are available."
@@ -721,6 +736,7 @@ def prefPkgUpdate() {
 			}
 		}
 		else {
+			logDebug "No updates available"
 			return dynamicPage(name: "prefPkgUpdate", title: "No Updates Available", install: true, uninstall: true) {
 				section {
 					paragraph "All packages are up to date."
@@ -741,6 +757,7 @@ def performUpdateCheck() {
 		
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
+			logDebug "Updates found for package ${pkg.key}"
 		} 
 		else {
 			def appOrDriverNeedsUpdate = false
@@ -754,6 +771,7 @@ def performUpdateCheck() {
 						if (state.specificPackageItemsToUpgrade[pkg.key] == null)
 							state.specificPackageItemsToUpgrade[pkg.key] = []
 						state.specificPackageItemsToUpgrade[pkg.key] << app.id
+						logDebug "Updates found for app ${app.location} -> ${pkg.key}"
 					}
 				}
 			}
@@ -767,6 +785,7 @@ def performUpdateCheck() {
 						if (state.specificPackageItemsToUpgrade[pkg.key] == null)
 							state.specificPackageItemsToUpgrade[pkg.key] = []
 						state.specificPackageItemsToUpgrade[pkg.key] << driver.id
+						logDebug "Updates found for driver ${driver.location} -> ${pkg.key}"
 					}
 				}
 			}
@@ -776,7 +795,7 @@ def performUpdateCheck() {
 }
 
 def prefPkgVerifyUpdates() {
-
+	logDebug "Verifying update choices"
 	atomicState.statusMessage = ""
 	atomicState.inProgress = null
 	atomicState.error = null
@@ -805,6 +824,7 @@ def prefPkgUpdatesComplete() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "Performing update"
 		atomicState.inProgress = true
 		runInMillis(1,performUpdates)
 	}
@@ -1640,7 +1660,8 @@ def rollback(error) {
 }
 
 def logDebug(msg) {
-    if (settings?.debugOutput) {
+	// For initial releases, hard coding debug mode to on.
+    //if (settings?.debugOutput) {
 		log.debug msg
-	}
+	//}
 }
