@@ -42,7 +42,7 @@
  ### Package Manifest 
  The package manifest is a JSON file that lists the apps and drivers that are part of your package. Note that the manifest requires you to create GUIDs to uniquely identify your apps and drivers. You can use [guidgenerator.com](https://guidgenerator.com/) to generate your own.
  
- Within the root of the JSON, define the _packageName_ which will be displayed to the user, the _minimumHEVersion_ which is the minimum firmware version supported (use 0 if you support all versions), _author_ to list the author name, and _dateReleased_ to indicate when this release was made. The _version_ is one of the most important entries. You can either version your entire package as a whole or each individual component. Versioning each component is preferred. If you are versioning the whole package, specify the version in the root. Otherwise specify a version for each app and driver. The _Update_ functionality will automatically look for a higher version number (which must be all numeric separated by dots) to detect a version. [SemVer](https://semver.org/) is a great versioning system that will work with this system. 
+ Within the root of the JSON, define the _packageName_ which will be displayed to the user, the _minimumHEVersion_ which is the minimum firmware version supported (use 0 if you support all versions), _author_ to list the author name, and _dateReleased_ to indicate when this release was made. There are two optional entries, _licenseFile_ which lets you provide a URL to a license file to be displayed during a new install, and _releaseNotes_ which are displayed during an update so the user knows what has changed. The _version_ is one of the most important entries. You can either version your entire package as a whole or each individual component. Versioning each component is preferred. If you are versioning the whole package, specify the version in the root. Otherwise specify a version for each app and driver. The _Update_ functionality will automatically look for a higher version number (which must be all numeric separated by dots) to detect a version. [SemVer](https://semver.org/) is a great versioning system that will work with this system. 
  
  Next, if your package includes apps, create an array called _apps_. Each app consists of an _id_ which is a GUID, a _name_ which is the name of the app, and _location_ which specifies a URL where the Groovy file for the app will be found. Additionally, you can specify two boolean values. If the app is required, set _required_ to true. If it is optional, set _required_ to false. Optional apps will allow the user to choose whether or not to install them when adding the package. Finally, if the app requires OAuth access, set _oauth_ to true, otherwise set it to false.
  
@@ -56,6 +56,8 @@
 	"author": "Dominick Meglio",
 	"version": "1.0",
 	"dateReleased": "2020-04-07",
+	"licenseFile": "",
+	"releaseNotes": "",
 	"apps" : [
 		{
 			"id" : "67d9cc01-a5cb-453c-832a-e78c5a6b978b",

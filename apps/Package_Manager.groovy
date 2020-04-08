@@ -758,6 +758,7 @@ def prefPkgUpdate() {
 // Update packages pathway
 def performUpdateCheck() {
 	state.needsUpdate = [:]
+	state.releaseNotes = [:]
 	state.specificPackageItemsToUpgrade = [:]
 
 	for (pkg in state.manifests) {
@@ -766,6 +767,7 @@ def performUpdateCheck() {
 		
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
+			state.releaseNotes << ["${pkg.key}": manifest.releaseNotes]
 			logDebug "Updates found for package ${pkg.key}"
 		} 
 		else {
@@ -774,8 +776,10 @@ def performUpdateCheck() {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
 				if (app.version != null && installedApp.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
-						if (!appOrDriverNeedsUpdate) // Only add a package to the list once
+						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 							state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+							state.releaseNotes << ["${pkg.key}": manifest.releaseNotes]
+						}
 						appOrDriverNeedsUpdate = true
 						if (state.specificPackageItemsToUpgrade[pkg.key] == null)
 							state.specificPackageItemsToUpgrade[pkg.key] = []
@@ -788,8 +792,10 @@ def performUpdateCheck() {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
 				if (driver.version != null && installedDriver.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
-						if (!appOrDriverNeedsUpdate) // Only add a package to the list once
+						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
 							state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+							state.releaseNotes << ["${pkg.key}": manifest.releaseNotes]
+						}
 						appOrDriverNeedsUpdate = true
 						if (state.specificPackageItemsToUpgrade[pkg.key] == null)
 							state.specificPackageItemsToUpgrade[pkg.key] = []
@@ -818,8 +824,17 @@ def prefPkgVerifyUpdates() {
 	else
 		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 	
+	
 	for (pkg in pkgsToUpdate) {
-		updatesToInstall += "<li>${state.manifests[pkg].packageName}</li>"
+		updatesToInstall += "<li>${state.manifests[pkg].packageName}"
+					
+		if (state.releaseNotes[pkg]) {
+			updatesToInstall += "<br>"
+			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${state.releaseNotes[pkg]}</textarea>"
+		}
+		
+		updatesToInstall += "</li>"
+		
 	}
 	updatesToInstall += "</ul>"
 	return dynamicPage(name: "prefPkgVerifyUpdates", title: "Install Updates?", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
@@ -829,6 +844,7 @@ def prefPkgVerifyUpdates() {
 	}
 }
 def prefPkgUpdatesComplete() {
+	state.releaseNotes = null
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
