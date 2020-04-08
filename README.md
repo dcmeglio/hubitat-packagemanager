@@ -81,3 +81,43 @@
 	]
 }
  ```
+ 
+ ### Repository File
+ The repository file is another JSON file that lists out all of the packages you provide. Essentially it is a table of contents to the various package manifest files. At the root you can specify the name of the _author_ and optionally the location of your _gitHubUrl_ and _payPalUrl_. After this is an array of _packages_. Each package consists of a _name_ (which should match the package manifest), a _category_ (see below), the _location_ which is the URL of the package manifest, and a _description_ that is displayed to the user.
+ 
+ #### Categories
+ To prevent the list of packages from getting unwieldy, they are divided into categories. The following categories are currently available:
+ 
+ * Integrations - Integrations with devices not natively supported by Hubitat. 
+ * Utility - Utility applications to make using the hub easier.
+ * Security - A package that provides security functionality.
+ * Convenience - A general category that's mainly a catch all.
+ 
+ If you feel the need to add additional categories, that's fine but I'd request you submit a Pull Request and update this README file. The idea is, if every developer uses the same set of categories we will be in a much better place where the list of categories doesn't get too large and unruly.
+ 
+ #### Publishing your Repository
+ When your repository file is ready to go, submit a Pull Request against https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json which includes the _name_ of your new repository and the _location_ of your repository JSON. Once your pull request is merged it will become available to all Hubitat Package Manager users.
+ 
+ #### Example
+ ```json
+ {
+	"author": "Dominick Meglio",
+	"gitHubUrl": "https://github.com/dcmeglio",
+	"payPalUrl": "https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url",
+	"packages": [
+		{
+			"name": "Package 1",
+			"category": "Integrations",
+			"location": "https://raw.githubusercontent.com/package1/packageManifest.json",
+			"description": "This is Package 1"
+		},
+		{
+			"name": "Package 2",
+			"category": "Convenience",
+			"location": "https://raw.githubusercontent.com/package2/packageManifest.json",
+			"description": "This is Package 2"
+		}
+	]
+	
+}
+```
