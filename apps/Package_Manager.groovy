@@ -82,7 +82,10 @@ def prefSettings(params) {
 	if (app.getInstallationState() == "COMPLETE" && params?.force != true)
 		return prefOptions()
 	else {
-		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: false, uninstall: false) {
+		def showInstall = app.getInstallationState() == "INCOMPLETE"
+		if (showInstall)
+			state.firstRun = true
+		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: showInstall, uninstall: false) {
 			section {
 				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
 				input("hpmSecurity", "bool", title: "Is Hub Security enabled?", submitOnChange: true)
@@ -91,12 +94,15 @@ def prefSettings(params) {
 					input("hpmUsername", "string", title: "Hub Security username", required: true)
 					input("hpmPassword", "password", title: "Hub Security password", required: true)
 				}
+				if (showInstall)
+					paragraph "Please click Done and restart the app to continue."
 			}
 		}
 	}
 }
 def prefOptions() {
-	state.installationCom
+	if (state.firstRun == true)
+		return prefPkgMatchUp()
 	return dynamicPage(name: "prefOptions", title: "Package Options", install: true, uninstall: false) {
 		section {
 			paragraph "What would you like to do?"
@@ -1045,8 +1051,10 @@ def prefPkgMatchUpVerify() {
 				}
 			}			
 		}
-		else
+		else {
+			state.firstRun = false
 			return complete("Match up complete", "No matching packages were found, click Done.")
+		}
 
 	}	
 }
@@ -1152,7 +1160,7 @@ def prefPkgMatchUpComplete() {
 			state.manifests[match] = manifest
 		}
 	}
-
+	state.firstRun = false
 	return dynamicPage(name: "prefPkgMatchUpComplete", title: "Marking Packages as Installed", install: true, uninstall: false) {
 		section {
 			paragraph "The selected packages have been marked as installed. Click Done to continue."
