@@ -599,7 +599,7 @@ def performModify() {
 			app.heID = null
 		}
 		else
-			return rollback("Failed to uninstall app ${app.location}")
+			return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.")
 	}
 	
 	for (driverToInstall in state.driversToInstall) {
@@ -610,7 +610,7 @@ def performModify() {
 			driver.heID = id
 		}
 		else
-			return rollback("Failed to install driver ${driver.location}")
+			return rollback("Failed to install driver ${driver.location}, it may be in use. Please delete all instances of this device before uninstalling the package.")
 		
 	}
 	for (driverToUninstall in state.driversToUninstall) {
@@ -700,7 +700,7 @@ def performUninstall() {
 				completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
 			}
 			else 
-				return rollback("Failed to uninstall app ${app.location}")
+				return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.")
 		}
 	}
 	
@@ -1560,11 +1560,17 @@ def uninstallApp(id) {
 				id: id,
 				"_action_delete": "Delete"
 			],
-			timeout: 300
+			timeout: 300,
+			textParser: true
 		]
+		def result = true
 		httpPost(params) { resp ->
+			def matcherText = resp.data.text.replace("\n","").replace("\r","")
+			def matcher = matcherText.find(/<div class="alert-close close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;<\/span><\/div>(.+?)<\/div>/)
+			if (matcher)
+				result = false
 		}
-		return true
+		return result
 	}
 	catch (e) {
 		log.error "Error uninstalling app ${e}"
