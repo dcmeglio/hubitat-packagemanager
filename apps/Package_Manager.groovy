@@ -1505,6 +1505,7 @@ def installApp(appCode) {
 		httpPost(params) { resp ->
 			if (resp.headers."Location" != null) {
 				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+				getAppSource(result)
 				completedActions["appInstalls"] << result
 			}
 			else
