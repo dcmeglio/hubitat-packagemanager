@@ -610,7 +610,7 @@ def performModify() {
 			driver.heID = id
 		}
 		else
-			return rollback("Failed to install driver ${driver.location}, it may be in use. Please delete all instances of this device before uninstalling the package.")
+			return rollback("Failed to install driver ${driver.location}, it may be in use.")
 		
 	}
 	for (driverToUninstall in state.driversToUninstall) {
@@ -622,7 +622,7 @@ def performModify() {
 			driver.heID = null
 		}
 		else
-			return rollback("Failed to uninstall driver ${driver.location}")
+			return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
 	}
 	atomicState.inProgress = false
 }
@@ -712,7 +712,7 @@ def performUninstall() {
 				completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 			}
 			else 
-				return rollback("Failed to uninstall driver ${driver.location}")
+				return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
 		}
 
 	}
@@ -1565,10 +1565,14 @@ def uninstallApp(id) {
 		]
 		def result = true
 		httpPost(params) { resp ->
-			def matcherText = resp.data.text.replace("\n","").replace("\r","")
-			def matcher = matcherText.find(/<div class="alert-close close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;<\/span><\/div>(.+?)<\/div>/)
-			if (matcher)
-				result = false
+			if (resp.data == null)
+				result = true
+			else {
+				def matcherText = resp.data.text.replace("\n","").replace("\r","")
+				def matcher = matcherText.find(/<div class="alert-close close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;<\/span><\/div>(.+?)<\/div>/)
+				if (matcher)
+					result = false
+			}
 		}
 		return result
 	}
@@ -1728,11 +1732,22 @@ def uninstallDriver(id) {
 				id: id,
 				"_action_delete": "Delete"
 			],
-			timeout: 300
+			timeout: 300,
+			textParser: true
 		]
+		def result = true
 		httpPost(params) { resp ->
+			if (resp.data == null)
+				result = true
+			else {
+				def matcherText = resp.data.text.replace("\n","").replace("\r","")
+				def matcher = matcherText.find(/<div class="alert-close close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;<\/span><\/div>(.+?)<\/div>/)
+				log.debug matcher
+				if (matcher)
+					result = false
+			}
 		}
-		return true
+		return result
 	}
 	catch (e)
 	{
