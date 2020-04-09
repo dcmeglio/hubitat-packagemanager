@@ -26,6 +26,7 @@ preferences {
     page(name: "prefPkgInstall")
 	page(name: "prefPkgInstallUrl")
 	page(name: "prefPkgInstallRepository")
+	page(name: "prefPkgInstallRepository2")
 	page(name: "prefPkgInstallRepositoryChoose")
 	page(name: "prefPkgModify")
     page(name: "prefPkgUpdate")
@@ -148,14 +149,68 @@ def prefPkgInstallRepository() {
 			}
 		}
 	}
-	else {
-		return dynamicPage(name: "prefPkgInstallRepository", title: "Choose a category", nextPage: "prefPkgInstallRepositoryChoose", install: false, uninstall: false) {
-			section {
-				input "pkgCategory", "enum", options: categories, required: true
-			}
-		}
-	}	
+    prefPkgInstallRepository2()
 }
+
+def prefPkgInstallRepository2() {
+    return dynamicPage(name: "prefPkgInstallRepository2", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
+		section("Choose a category") {
+			input "pkgCategory", "enum", options: categories, required: true, submitOnChange: true
+		}
+        if(pkgCategory) {
+            atomicState.statusMessage = ""
+            atomicState.inProgress = null
+            atomicState.error = null
+            atomicState.errorTitle = null
+            atomicState.errorMessage = null
+            def matchingPackages = [:]
+            for (pkg in allPackages) {
+                if (pkg.category == pkgCategory)
+                matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
+            }
+            section("Choose a package") {
+                input "pkgInstall", "enum", options: matchingPackages, required: true, submitOnChange: true
+            }   
+        }
+        
+        if(pkgCategory && pkgInstall) {
+            if (state.manifests == null)
+            state.manifests = [:]
+            def manifest = getJSONFile(pkgInstall)
+            log.debug pkgInstall
+            if (manifest == null) {
+                return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package or does not exist.")
+            }
+            if (state.manifests[pkgInstall] != null)
+            {
+                return buildErrorPage("Package Already Installed", "${pkgInstall} has already been installed. If you would like to look for upgrades, use the Update function.")
+            }
+
+            if (!verifyHEVersion(manifest.minimumHEVersion)) {
+                return buildErrorPage("Unsupported Hubitat Firmware", "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing.")
+            } 
+            else {
+                def apps = getOptionalAppsFromManifest(manifest)
+                def drivers = getOptionalDriversFromManifest(manifest)
+                def title = "Choose the components to install"
+                if (apps.size() == 0 && drivers.size() == 0)
+                title = "Ready to install"
+
+                section("${title}") {
+                    if (apps.size() > 0 || drivers.size() > 0)
+                    paragraph "You are about to install <b>${manifest.packageName}</b>. This package includes some optional components. Please choose which ones you would like to include below. Click Next when you are ready."
+                    else
+                        paragraph "You are about to install <b>${manifest.packageName}</b>. Click next when you are ready."
+                    if (apps.size() > 0)
+                    input "appsToInstall", "enum", title: "Select the apps to install", options: apps, hideWhenEmpty: true, multiple: true
+                    if (drivers.size() > 0)
+                    input "driversToInstall", "enum", title: "Select the drivers to install", options: drivers, hideWhenEmpty: true, multiple: true
+                }
+            }
+        }
+    }	
+}
+
 
 def performRepositoryRefresh() {
 	allPackages = []
@@ -184,74 +239,6 @@ def performRepositoryRefresh() {
 	}
 	categories = categories.sort()
 	atomicState.inProgress = false
-}
-
-def prefPkgInstallRepositoryChoose() {
-	atomicState.statusMessage = ""
-	atomicState.inProgress = null
-	atomicState.error = null
-	atomicState.errorTitle = null
-	atomicState.errorMessage = null
-	def matchingPackages = [:]
-	for (pkg in allPackages) {
-		if (pkg.category == pkgCategory)
-			matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
-	}
-	logDebug "Chose category ${pkgCategory}"
-	return dynamicPage(name: "prefPkgInstallRepositoryChoose", title: "Choose a package", nextPage: "prefInstallChoices", install: false, uninstall: false) {
-		section {
-			input "pkgInstall", "enum", options: matchingPackages, required: true
-		}
-	}	
-}
-
-def prefInstallChoices() {
-	logDebug "Manifest chosen ${pkgInstall}"
-    def manifest = getJSONFile(pkgInstall)
-	
-	if (manifest == null) {
-		return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package or does not exist.")
-	}
-	if (state.manifests[pkgInstall] != null)
-	{
-		return buildErrorPage("Package Already Installed", "${pkgInstall} has already been installed. If you would like to look for upgrades, use the Update function.")
-	}
-	
-	if (!verifyHEVersion(manifest.minimumHEVersion)) {
-		return buildErrorPage("Unsupported Hubitat Firmware", "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing.")
-	} 
-	else {
-		def apps = getOptionalAppsFromManifest(manifest)
-		def drivers = getOptionalDriversFromManifest(manifest)
-		def title = "Choose the components to install"
-		def githubUrl = null
-		def paypalUrl = null
-		if (apps.size() == 0 && drivers.size() == 0)
-			title = "Ready to install"
-		def packageFromRepo = allPackages.find { i -> i.location == pkgInstall}
-
-		if (packageFromRepo != null) {
-			githubUrl = packageFromRepo.githubUrl
-			paypalUrl = packageFromRepo.payPalUrl
-		}
-		
-		return dynamicPage(name: "prefInstallChoices", title: title, nextPage: "prefInstallVerify", install: false, uninstall: false) {
-			section {
-				if (githubUrl != null)
-					paragraph "Author's Github: <a href='${githubUrl}' target='_blank'>${githubUrl}</a>"
-				if (paypalUrl != null)
-					paragraph "Author's Paypal: <a href='${paypalUrl}' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border=0></a>"
-				if (apps.size() > 0 || drivers.size() > 0)
-					paragraph "You are about to install <b>${manifest.packageName}</b>. This package includes some optional components. Please choose which ones you would like to include below. Click Next when you are ready."
-				else
-					paragraph "You are about to install <b>${manifest.packageName}</b>. Click next when you are ready."
-				if (apps.size() > 0)
-					input "appsToInstall", "enum", title: "Select the apps to install", options: apps, hideWhenEmpty: true, multiple: true
-				if (drivers.size() > 0)
-					input "driversToInstall", "enum", title: "Select the drivers to install", options: drivers, hideWhenEmpty: true, multiple: true
-			}
-		}
-	}
 }
 
 def prefInstallVerify() {
