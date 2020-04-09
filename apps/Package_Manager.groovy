@@ -40,6 +40,8 @@ preferences {
 	page(name: "prefUninstall")
 	page(name: "prefPkgVerifyUpdates")
 	page(name: "prefPkgUpdatesComplete")
+	page(name: "prefPkgMatchUp")
+	page(name: "prefPkgMatchUpVerify")
 }
 
 import groovy.transform.Field
@@ -100,6 +102,7 @@ def prefOptions() {
 			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package")
 			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall a package")
             href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates")
+			href(name: "prefPkgMatchUp", title: "Match Up", required: false, page: "prefPkgMatchUp", description: "Match up the apps and drivers you already have installed with packages available so that you can use the package manager to get future updates")
 			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings")
 		}
 	}
@@ -997,6 +1000,125 @@ def performUpdates() {
 		else {
 		}
 	}
+	atomicState.inProgress = false
+}
+
+def prefPkgMatchUp() {
+	logDebug "Package Match Up"
+
+	return dynamicPage(name: "prefPkgMatchUp", title: "Match Installed Apps and Drivers", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
+		section {
+			paragraph "This will go through all of the apps and drivers you currently have installed in Hubitat and attempt to find matching packages. This process can take minutes or even hours depending on how many apps and drivers you have installed. Click Next to continue."
+		}
+	}
+}
+
+def prefPkgMatchUpVerify() {
+	if (atomicState.error == true) {
+		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
+	}
+	if (atomicState.inProgress == null) {
+		logDebug "Performing Package Matching"
+		atomicState.inProgress = true
+		runInMillis(1,performPackageMatchup)
+	}
+	if (atomicState.inProgress != false) {
+		return dynamicPage(name: "prefPkgMatchUpVerify", title: "Match Installed Apps and Drivers", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
+			section {
+				paragraph "Matching packages... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+		}
+	}
+	else {
+		if (state.packagesWithMatches?.size() > 0)
+		{
+			def itemsForList = [:]
+			for (pkg in state.packagesWithMatches) {
+				
+				def appAndDriverMatches = ((pkg.matchedApps?.collect { it -> it.title } ?: []) + (pkg.matchedDrivers?.collect { it -> it.title } ?: [])).join(", ")			
+				itemsForList << ["${pkg.location}":"${pkg.name} - matched (${appAndDriverMatches})"]
+			}
+			return dynamicPage(name: "prefPkgMatchUpVerify", title: "Found matching packages", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
+				section {
+					paragraph "The following matches were found. There is a possibility that some may have matched incorrectly. Only check off the items that you believe are correct."
+					input "pkgMatches", "enum", required: true, multiple: true, options: itemsForList
+				}
+			}			
+		}
+		else
+			return complete("Match up complete", "No matching packages were found, click Done.")
+
+	}	
+}
+
+def performPackageMatchup() {
+	setBackgroundStatusMessage("Retrieving list of installed apps")
+	def allInstalledApps = getAppList()
+	setBackgroundStatusMessage("Retrieving list of installed drivers")
+	def allInstalledDrivers = getDriverList()
+	
+	// Filter out anything that already has an associated package
+	for (manifest in state.manifests) {
+		for (app in manifest.value.apps) {
+			if (app.heID != null)
+				allInstalledApps.removeIf {it -> it.id == app.heID}
+		}
+		for (driver in manifest.value.drivers) {
+			if (driver.heID != null)
+				allInstalledDrivers.remove {it -> it.id == driver.heID}
+		}
+	}
+	log.debug allInstalledDrivers
+	def packagesToMatchAgainst = []
+	for (repo in listOfRepositories.repositories) {
+		setBackgroundStatusMessage("Refreshing ${repo.name}")
+		def fileContents = getJSONFile(repo.location)
+		if (!fileContents)
+			return triggerError("Error Refreshing Repository","Error refreshing ${repo.name}")
+		for (pkg in fileContents.packages) {
+			def manifestContents = getJSONFile(pkg.location)
+			if (manifestContents == null)
+				log.warn "Found a bad manifest ${pkg.location}"
+			else {
+				def pkgDetails = [
+					repository: repo.name,
+					name: pkg.name,
+					location: pkg.location,
+					manifest: manifestContents
+				]
+				packagesToMatchAgainst << pkgDetails
+			}
+		}
+	}
+	
+	state.packagesWithMatches = []
+	setBackgroundStatusMessage("Matching up packages")
+	for (pkg in packagesToMatchAgainst) {
+		def matchedInstalledApps = []
+		def matchedInstalledDrivers = []
+		
+		for (app in pkg.manifest.apps) {
+
+			def appsToAdd = allInstalledApps.find { it -> it.title == app.name && it.namespace == app.namespace}
+			if (appsToAdd?.size() > 0)
+				matchedInstalledApps << appsToAdd
+		}
+		for (driver in pkg.manifest.drivers) {
+			log.debug "${driver.name} - ${driver.namespace}"
+			def driversToAdd = allInstalledDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace}
+			if (driversToAdd?.size() > 0)
+				matchedInstalledDrivers << driversToAdd
+		}
+		if (matchedInstalledApps?.size() > 0 || matchedInstalledDrivers?.size() > 0) {
+			log.debug matchedInstalledDrivers
+			pkg.matchedApps = matchedInstalledApps
+			pkg.matchedDrivers = matchedInstalledDrivers
+			state.packagesWithMatches << pkg
+		}
+	}
+	
+	
 	atomicState.inProgress = false
 }
 
