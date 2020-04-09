@@ -219,8 +219,11 @@ def performRepositoryRefresh() {
 	for (repo in listOfRepositories.repositories) {
 		setBackgroundStatusMessage("Refreshing ${repo.name}")
 		def fileContents = getJSONFile(repo.location)
-		if (!fileContents)
-			return triggerError("Error Refreshing Repository","Error refreshing ${repo.name}")
+		if (!fileContents) {
+			log.warn "Error refreshing ${repo.name}"
+			setBackgroundStatusMessage("Failed to refresh ${repo.name}")
+			continue
+		}
 		for (pkg in fileContents.packages) {
 			def pkgDetails = [
 				repository: repo.name,
@@ -1071,8 +1074,11 @@ def performPackageMatchup() {
 	for (repo in listOfRepositories.repositories) {
 		setBackgroundStatusMessage("Refreshing ${repo.name}")
 		def fileContents = getJSONFile(repo.location)
-		if (!fileContents)
-			return triggerError("Error Refreshing Repository","Error refreshing ${repo.name}")
+		if (!fileContents) {
+			log.warn "Error refreshing ${repo.name}"
+			setBackgroundStatusMessage("Failed to refresh ${repo.name}")
+			continue
+		}
 		for (pkg in fileContents.packages) {
 			def manifestContents = getJSONFile(pkg.location)
 			if (manifestContents == null)
