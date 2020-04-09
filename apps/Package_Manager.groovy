@@ -237,6 +237,7 @@ def performRepositoryRefresh() {
 				categories << pkgDetails.category
 		}
 	}
+	allPackages = allPackages.sort()
 	categories = categories.sort()
 	atomicState.inProgress = false
 }
@@ -756,6 +757,10 @@ def performUpdateCheck() {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
 		def manifest = getJSONFile(pkg.key)
 		
+		if (manifest == null) {
+			log.warn "Found a bad manifest ${pkg.key}"
+			continue
+		}
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			state.needsUpdate << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
 			state.releaseNotes << ["${pkg.key}": manifest.releaseNotes]
@@ -797,6 +802,7 @@ def performUpdateCheck() {
 			}
 		}
 	}
+	state.needsUpdate = state.needsUpdate.sort { it -> it.value }
 	atomicState.inProgress = false
 }
 
@@ -1027,6 +1033,7 @@ def prefPkgMatchUpVerify() {
 				def appAndDriverMatches = ((pkg.matchedApps?.collect { it -> it.title } ?: []) + (pkg.matchedDrivers?.collect { it -> it.title } ?: [])).join(", ")			
 				itemsForList << ["${pkg.location}":"${pkg.name} - matched (${appAndDriverMatches})"]
 			}
+			itemsForList = itemsForList.sort { it-> it.value}
 			return dynamicPage(name: "prefPkgMatchUpVerify", title: "Found matching packages", nextPage: "prefPkgMatchUpComplete", install: false, uninstall: false) {
 				section {
 					paragraph "The following matches were found. There is a possibility that some may have matched incorrectly. Only check off the items that you believe are correct."
@@ -1104,7 +1111,6 @@ def performPackageMatchup() {
 			state.packagesWithMatches << pkg
 		}
 	}
-	
 	
 	atomicState.inProgress = false
 }
@@ -1236,6 +1242,7 @@ def getInstalledPackages() {
 	def pkgsToList = [:]
 	for (pkg in state.manifests) 
 		pkgsToList[pkg.key] = pkg.value.packageName
+	pkgsToList = pkgsToList.sort { it -> it.value }
 	return pkgsToList
 }
 
