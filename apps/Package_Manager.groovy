@@ -160,24 +160,27 @@ def prefPkgInstallRepository() {
 
 def prefPkgInstallRepository2() {
     return dynamicPage(name: "prefPkgInstallRepository2", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
-		section("Choose a category") {
-			input "pkgCategory", "enum", options: categories, required: true, submitOnChange: true
+		section {
+			input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
+		
+			if(pkgCategory) {
+				input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
+				atomicState.statusMessage = ""
+				atomicState.inProgress = null
+				atomicState.error = null
+				atomicState.errorTitle = null
+				atomicState.errorMessage = null
+				def matchingPackages = [:]
+				for (pkg in allPackages) {
+					if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
+						continue
+					if (pkg.category == pkgCategory)
+						matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
+				}
+				
+				input "pkgInstall", "enum", title: "Choose a package", options: matchingPackages, required: true, submitOnChange: true
+			}
 		}
-        if(pkgCategory) {
-            atomicState.statusMessage = ""
-            atomicState.inProgress = null
-            atomicState.error = null
-            atomicState.errorTitle = null
-            atomicState.errorMessage = null
-            def matchingPackages = [:]
-            for (pkg in allPackages) {
-                if (pkg.category == pkgCategory)
-                matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
-            }
-            section("Choose a package") {
-                input "pkgInstall", "enum", options: matchingPackages, required: true, submitOnChange: true
-            }   
-        }
         
         if(pkgCategory && pkgInstall) {
             if (state.manifests == null)
