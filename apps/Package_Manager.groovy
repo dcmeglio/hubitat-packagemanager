@@ -42,6 +42,7 @@ preferences {
 	page(name: "prefPkgUpdatesComplete")
 	page(name: "prefPkgMatchUp")
 	page(name: "prefPkgMatchUpVerify")
+	page(name: "prefPkgMatchUpComplete")
 }
 
 import groovy.transform.Field
@@ -1039,10 +1040,11 @@ def prefPkgMatchUpVerify() {
 				def appAndDriverMatches = ((pkg.matchedApps?.collect { it -> it.title } ?: []) + (pkg.matchedDrivers?.collect { it -> it.title } ?: [])).join(", ")			
 				itemsForList << ["${pkg.location}":"${pkg.name} - matched (${appAndDriverMatches})"]
 			}
-			return dynamicPage(name: "prefPkgMatchUpVerify", title: "Found matching packages", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
+			return dynamicPage(name: "prefPkgMatchUpVerify", title: "Found matching packages", nextPage: "prefPkgMatchUpComplete", install: false, uninstall: false) {
 				section {
 					paragraph "The following matches were found. There is a possibility that some may have matched incorrectly. Only check off the items that you believe are correct."
 					input "pkgMatches", "enum", required: true, multiple: true, options: itemsForList
+					input "pkgUpToDate", "bool", title: "Assume that packages are up-to-date? If set, the currently installed version will be marked as up-to-date. If not set, next time you run an update check this package will be updated."
 				}
 			}			
 		}
@@ -1053,6 +1055,7 @@ def prefPkgMatchUpVerify() {
 }
 
 def performPackageMatchup() {
+	login()
 	setBackgroundStatusMessage("Retrieving list of installed apps")
 	def allInstalledApps = getAppList()
 	setBackgroundStatusMessage("Retrieving list of installed drivers")
@@ -1066,10 +1069,10 @@ def performPackageMatchup() {
 		}
 		for (driver in manifest.value.drivers) {
 			if (driver.heID != null)
-				allInstalledDrivers.remove {it -> it.id == driver.heID}
+				allInstalledDrivers.removeIf {it -> it.id == driver.heID}
 		}
 	}
-	log.debug allInstalledDrivers
+	
 	def packagesToMatchAgainst = []
 	for (repo in listOfRepositories.repositories) {
 		setBackgroundStatusMessage("Refreshing ${repo.name}")
@@ -1099,19 +1102,16 @@ def performPackageMatchup() {
 		def matchedInstalledDrivers = []
 		
 		for (app in pkg.manifest.apps) {
-
 			def appsToAdd = allInstalledApps.find { it -> it.title == app.name && it.namespace == app.namespace}
-			if (appsToAdd?.size() > 0)
+			if (appsToAdd != null)
 				matchedInstalledApps << appsToAdd
 		}
 		for (driver in pkg.manifest.drivers) {
-			log.debug "${driver.name} - ${driver.namespace}"
 			def driversToAdd = allInstalledDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace}
-			if (driversToAdd?.size() > 0)
+			if (driversToAdd != null)
 				matchedInstalledDrivers << driversToAdd
 		}
 		if (matchedInstalledApps?.size() > 0 || matchedInstalledDrivers?.size() > 0) {
-			log.debug matchedInstalledDrivers
 			pkg.matchedApps = matchedInstalledApps
 			pkg.matchedDrivers = matchedInstalledDrivers
 			state.packagesWithMatches << pkg
@@ -1120,6 +1120,45 @@ def performPackageMatchup() {
 	
 	
 	atomicState.inProgress = false
+}
+
+def prefPkgMatchUpComplete() {
+	logDebug "Completing matched packages"
+	
+	for (match in pkgMatches) {
+		def matchFromState = state.packagesWithMatches.find {it -> it.location == match}
+		if (matchFromState) {
+			def manifest = matchFromState.manifest
+			def installedApps = matchFromState.matchedApps
+			def installedDrivers = matchFromState.matchedDrivers
+			if (!pkgUpToDate && manifest.version != null)
+				manifest.version = "0.0"
+			for (app in manifest.apps) {
+				def installedApp = installedApps.find { it -> it.title == app.name && it.namespace == app.namespace }
+				if (installedApp != null) {
+					app.heID = installedApp.id
+					if (!pkgUpToDate && app.version != null)
+						app.version = "0.0"
+				}
+			}
+			
+			for (driver in manifest.drivers) {
+				def installedDriver = installedDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace }
+				if (installedDriver != null) {
+					driver.heID = installedDriver.id
+					if (!pkgUpToDate && driver.version != null)
+						driver.version = "0.0"
+				}
+			}
+			state.manifests[match] = manifest
+		}
+	}
+
+	return dynamicPage(name: "prefPkgMatchUpComplete", title: "Marking Packages as Installed", install: true, uninstall: false) {
+		section {
+			paragraph "The selected packages have been marked as installed. Click Done to continue."
+		}
+	}
 }
 
 def buildErrorPage(title, message) {
@@ -1181,8 +1220,11 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
 	app.removeSetting("pkgCategory")
+	app.removeSetting("pkgMatches")
+	app.removeSetting("pkgUpToDate")
 	state.needsUpdate = [:]
 	state.specificPackageItemsToUpgrade = [:]
+	state.packagesWithMatches = []
 	if (clearProgress) {
 		atomicState.statusMessage = ""
 		atomicState.inProgress = null

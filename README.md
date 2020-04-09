@@ -44,9 +44,9 @@
  
  Within the root of the JSON, define the _packageName_ which will be displayed to the user, the _minimumHEVersion_ which is the minimum firmware version supported (use 0 if you support all versions), _author_ to list the author name, and _dateReleased_ to indicate when this release was made. There are two optional entries, _licenseFile_ which lets you provide a URL to a license file to be displayed during a new install, and _releaseNotes_ which are displayed during an update so the user knows what has changed. The _version_ is one of the most important entries. You can either version your entire package as a whole or each individual component. Versioning each component is preferred. If you are versioning the whole package, specify the version in the root. Otherwise specify a version for each app and driver. The _Update_ functionality will automatically look for a higher version number (which must be all numeric separated by dots) to detect a version. [SemVer](https://semver.org/) is a great versioning system that will work with this system. 
  
- Next, if your package includes apps, create an array called _apps_. Each app consists of an _id_ which is a GUID, a _name_ which is the name of the app, and _location_ which specifies a URL where the Groovy file for the app will be found. Additionally, you can specify two boolean values. If the app is required, set _required_ to true. If it is optional, set _required_ to false. Optional apps will allow the user to choose whether or not to install them when adding the package. Finally, if the app requires OAuth access, set _oauth_ to true, otherwise set it to false.
+ Next, if your package includes apps, create an array called _apps_. Each app consists of an _id_ which is a GUID, a _name_ which is the name of the app, a _namespace_ which must match the namespace of the app, and _location_ which specifies a URL where the Groovy file for the app will be found. Additionally, you can specify two boolean values. If the app is required, set _required_ to true. If it is optional, set _required_ to false. Optional apps will allow the user to choose whether or not to install them when adding the package. Finally, if the app requires OAuth access, set _oauth_ to true, otherwise set it to false.
  
-  Finally, if your package includes drivers, create an array called _drivers_. Each driver consists of an _id_ which is a GUID, a _name_ which is the name of the driver, and _location_ which specifies a URL where the Groovy file for the driver will be found. Additionally, you can specify a boolean value to indicate if the driver is required. set _required_ to true if required, or if it is optional, set _required_ to false. Below is an example of a package manifest:
+  Finally, if your package includes drivers, create an array called _drivers_. Each driver consists of an _id_ which is a GUID, a _name_ which is the name of the driver, a _namespace_ which must match the namespace of the driver, and _location_ which specifies a URL where the Groovy file for the driver will be found. Additionally, you can specify a boolean value to indicate if the driver is required. set _required_ to true if required, or if it is optional, set _required_ to false. Below is an example of a package manifest:
  
  #### Example
  ```json
@@ -62,6 +62,7 @@
 		{
 			"id" : "67d9cc01-a5cb-453c-832a-e78c5a6b978b",
 			"name": "The App",
+			"namespace": "abc.theapp",
 			"location": "https://raw.githubusercontent.com/app.groovy",
 			"required": true,
 			"oauth": false
@@ -71,12 +72,14 @@
 		{
 			"id": "22597029-98db-490b-b8b9-c23b972ee5f2",
 			"name": "Required Driver",
+			"namespace": "abc.reqdriver",
 			"location": "https://raw.githubusercontent.com/driver1.groovy",
 			"required": true
 		},
 		{
 			"id": "e012ffff-7959-466b-a2ae-3181a33010f9",
 			"name": "Optional Driver",
+			"namespace": "abc.optdriver",
 			"location": "https://raw.githubusercontent.com/driver2.groovy",
 			"required": false
 		}

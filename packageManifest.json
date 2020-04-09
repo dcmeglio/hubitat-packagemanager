@@ -2,8 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "0.3.0",
-	"dateReleased": "2020-04-08",
+	"version": "0.4.0",
+	"dateReleased": "2020-04-09",
+	"releaseNotes": "Added the ability to match up existing apps/drivers with packages so users don't need to reinstall."
 	"apps" : [
 		{
 			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",
