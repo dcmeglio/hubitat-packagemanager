@@ -126,6 +126,10 @@ def prefPkgInstall() {
 			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package. This is an advanced feature, only use it if you know how to find a package's manifest manually.")
 			
 		}
+		section {
+            		paragraph "<hr>"
+           		href(name: "prefOptions", title: "Main Menu", required: false, page: "prefOptions", description: "", width:3)
+        	}
 	}
 }
 
@@ -135,6 +139,10 @@ def prefPkgInstallUrl() {
 		section {
 			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install (this should be a path to a <code>packageManifest.json</code> file)."
 		}
+		section {
+            		paragraph "<hr>"
+            		href(name: "prefOptions", title: "Main Menu", required: false, page: "prefOptions", description: "", width:3)
+        	}
 	}
 }
 
@@ -220,6 +228,10 @@ def prefPkgInstallRepository2() {
                 }
             }
         }
+	section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: false, page: "prefOptions", description: "", width:3)
+        }
     }	
 }
 
@@ -271,6 +283,10 @@ def prefInstallVerify() {
 			else
 				paragraph "Click the next button to install your selections. This may take some time..."
 		}
+	    	section {
+            		paragraph "<hr>"
+           		href(name: "prefOptions", title: "Main Menu", required: false, page: "prefOptions", description: "", width:3)
+        	}
 	}
 }
 
