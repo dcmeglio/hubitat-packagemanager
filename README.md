@@ -93,10 +93,12 @@
  #### Categories
  To prevent the list of packages from getting unwieldy, they are divided into categories. The following categories are currently available:
  
- * Integrations - Integrations with devices not natively supported by Hubitat. 
- * Utility - Utility applications to make using the hub easier.
- * Security - A package that provides security functionality.
+ * Control - lighting/motion/presence/locks/etc.
  * Convenience - A general category that's mainly a catch all.
+ * Integrations - devices/applications/services 
+ * Notifications - speakers/TTS/music/etc.
+ * Security - presence/camera/sensors/etc.
+ * Utility - Data/Button controllers/IR control/etc.
  
  If you feel the need to add additional categories, that's fine but I'd request you submit a Pull Request and update this README file. The idea is, if every developer uses the same set of categories we will be in a much better place where the list of categories doesn't get too large and unruly.
  
