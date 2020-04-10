@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "0.5.0",
-	"dateReleased": "2020-04-09",
-	"releaseNotes": "Fixed a lot of bugs related to app installation, uninstall, and general usability.",
+	"version": "0.6.0",
+	"dateReleased": "2020-04-10",
+	"releaseNotes": "Cleaned up interface a lot and fixed bugs related to packages where apps/drivers are versioned individually.",
 	"apps" : [
 		{
 			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",
