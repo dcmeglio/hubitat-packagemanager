@@ -162,7 +162,8 @@ def prefPkgInstallRepository2() {
     return dynamicPage(name: "prefPkgInstallRepository2", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
 		section {
 			input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
-		
+			if(pkgCategory) input "sortBy", "bool", title: "Sort packages by App Name or by Author", description: "Sorting", defaultValue: false, submitOnChange: true
+			
 			if(pkgCategory) {
 				input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
 				atomicState.statusMessage = ""
@@ -174,11 +175,13 @@ def prefPkgInstallRepository2() {
 				for (pkg in allPackages) {
 					if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
 						continue
-					if (pkg.category == pkgCategory)
-						matchingPackages << ["${pkg.location}":"${pkg.name} - ${pkg.description}"]
+					if (pkg.category == pkgCategory) {
+                    				if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
+                    				if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
+               				 }
 				}
-				
-				input "pkgInstall", "enum", title: "Choose a package", options: matchingPackages, required: true, submitOnChange: true
+				matchingPackages1 = matchingPackages.sort { a, b -> a.value <=> b.value }
+				input "pkgInstall", "enum", title: "Choose a package", options: matchingPackages1, required: true, submitOnChange: true
 			}
 		}
         
