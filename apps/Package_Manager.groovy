@@ -114,28 +114,19 @@ def prefSettings(params) {
 	}
 }
 
-def appButtonHandler(btn) { 
-	logDebug "${btn} was clicked"
-	switch (btn) {
-		case "btnAdd":
-			break
-		case "btnRemove":
-			break
-		case "btnAddCustom":
-		log.debug customRepo
-			break
-	}
-}
 
 def prefOptions() {
 	if (state.firstRun == true)
 		return prefPkgMatchUp()
+	else
+		clearStateSettings(true)
 	if (installedRepositories == null) {
 		def repos = [] as List
 		listOfRepositories.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
 	return dynamicPage(name: "prefOptions", title: "Package Options", install: true, uninstall: false) {
+
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
@@ -158,6 +149,10 @@ def prefPkgInstall() {
 			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package. This is an advanced feature, only use it if you know how to find a package's manifest manually.")
 			
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -165,8 +160,12 @@ def prefPkgInstallUrl() {
 	logDebug "Install by URL"
 	return dynamicPage(name: "prefPkgInstallUrl", title: "Install a Package from URL", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
-			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install (this should be a path to a <code>packageManifest.json</code> file)."
+			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install (this should be a path to a <code>packageManifest.json</code> file).", required: true
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -252,6 +251,10 @@ def prefPkgInstallRepository2() {
                 }
             }
         }
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: false, page: "prefOptions", description: "", width:3)
+        }
     }	
 }
 
@@ -307,6 +310,10 @@ def prefInstallVerify() {
 			else
 				paragraph "Click the next button to install your selections. This may take some time..."
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -452,6 +459,10 @@ def prefPkgModify() {
 			paragraph "Only packages that have optional components are shown below."
 			input "pkgModify", "enum", title: "Choose the package to modify", options: pkgsToList, required: true
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -483,12 +494,20 @@ def prefPkgModifyChoices() {
 				if (optionalDrivers.size() > 0)
 					input "driversToModify", "enum", title: "Select the drivers to install/uninstall", options: optionalDrivers, hideWhenEmpty: true, multiple: true, defaultValue: installedOptionalDrivers
 			}
+			section {
+				paragraph "<hr>"
+				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+			}
 		}
 	}
 	else {
 		return dynamicPage(name: "prefPkgModifyChoices", title: "Nothing to modify", install: true, uninstall: false) {
 			section {
 				paragraph "This package does not have any optional components that you can modify."
+			}
+			section {
+				paragraph "<hr>"
+				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
 			}
 		}
 	}
@@ -560,12 +579,20 @@ def prefVerifyPackageChanges() {
 				if (driversToUninstallStr != "<ul></ul>" || appsToUninstallStr != "<ul></ul>")
 					paragraph "Please be sure that the apps and drivers to be uninstalled are not in use before clicking Next."
 			}
+			section {
+				paragraph "<hr>"
+				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+			}
 		}
 	}
 	else {
-		return dynamicPage(name: "prefVerifyPackageChanges", title: "Nothing to modify", install: true, uninstall: true) {
+		return dynamicPage(name: "prefVerifyPackageChanges", title: "Nothing to modify", install: true, uninstall: false) {
 			section {
 				paragraph "You did not make any changes."
+			}
+			section {
+				paragraph "<hr>"
+				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
 			}
 		}
 	}
@@ -586,7 +613,6 @@ def prefMakePackageChanges() {
 				paragraph "Your changes are currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
-			
 		}
 	}
 	else {
@@ -683,6 +709,10 @@ def prefPkgUninstall() {
 		section {
 			input "pkgUninstall", "enum", title: "Choose the package to uninstall", options: pkgsToList, required: true
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -707,6 +737,10 @@ def prefPkgUninstallConfirm() {
 			paragraph str
 			paragraph "Please be sure that the app and device drivers are not in use, then click Next to continue."
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -725,7 +759,6 @@ def prefUninstall() {
 				paragraph "Your uninstall is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
-			
 		}
 	}
 	else {
@@ -785,7 +818,6 @@ def prefPkgUpdate() {
 				paragraph "Checking for updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
-			
 		}
 	}
 	else {
@@ -796,13 +828,21 @@ def prefPkgUpdate() {
 					paragraph "Updates are available."
 					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:state.needsUpdate
 				}
+				section {
+					paragraph "<hr>"
+					href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				}
 			}
 		}
 		else {
 			logDebug "No updates available"
-			return dynamicPage(name: "prefPkgUpdate", title: "No Updates Available", install: true, uninstall: true) {
+			return dynamicPage(name: "prefPkgUpdate", title: "No Updates Available", install: true, uninstall: false) {
 				section {
 					paragraph "All packages are up to date."
+				}
+				section {
+					paragraph "<hr>"
+					href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
 				}
 			}
 		}
@@ -901,6 +941,10 @@ def prefPkgVerifyUpdates() {
 		section {
 			paragraph "The following updates will be installed: ${updatesToInstall} Click Next to continue. This may take some time."
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 def prefPkgUpdatesComplete() {
@@ -1069,6 +1113,10 @@ def prefPkgMatchUp() {
 		section {
 			paragraph "This will go through all of the apps and drivers you currently have installed in Hubitat and attempt to find matching packages. This process can take minutes or even hours depending on how many apps and drivers you have installed. Click Next to continue."
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -1104,6 +1152,10 @@ def prefPkgMatchUpVerify() {
 					paragraph "The following matches were found. There is a possibility that some may have matched incorrectly. Only check off the items that you believe are correct."
 					input "pkgMatches", "enum", title: "Choose packages to match", required: true, multiple: true, options: itemsForList
 					input "pkgUpToDate", "bool", title: "Assume that packages are up-to-date? If set, the currently installed version will be marked as up-to-date. If not set, next time you run an update check this package will be updated."
+				}
+				section {
+					paragraph "<hr>"
+					href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
 				}
 			}			
 		}
@@ -1227,6 +1279,10 @@ def prefPkgMatchUpComplete() {
 			else
 				paragraph "The selected packages have been marked as installed. Click Done to continue. If you wish to update the packages to the latest version, run an <b>Update</b>."
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -1235,6 +1291,10 @@ def buildErrorPage(title, message) {
 		section {
 			paragraph message
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
@@ -1911,6 +1971,10 @@ def complete(title, message) {
 		section {
 			paragraph message
 		}
+		section {
+            paragraph "<hr>"
+            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+        }
 	}
 }
 
