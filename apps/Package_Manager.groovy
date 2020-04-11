@@ -78,6 +78,11 @@ def prefSettings(params) {
 	logDebug "Refreshing repository list"
 	
 	listOfRepositories = getJSONFile(repositoryListing)
+	if (installedRepositories == null) {
+		def repos = [] as List
+		listOfRepositories.repositories.each { it -> repos << it.location }
+		app.updateSetting("installedRepositories", repos)
+	}
 	installHPMManifest()
 	if (app.getInstallationState() == "COMPLETE" && params?.force != true)
 		return prefOptions()
@@ -86,23 +91,50 @@ def prefSettings(params) {
 		if (showInstall)
 			state.firstRun = true
 		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: showInstall, uninstall: false) {
-			section {
+			section ("Hub Security") {
 				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
 				input "hpmSecurity", "bool", title: "Hub Security Enabled", submitOnChange: true
 				if (hpmSecurity)
 				{
-					input("hpmUsername", "string", title: "Hub Security username", required: true)
-					input("hpmPassword", "password", title: "Hub Security password", required: true)
+					input "hpmUsername", "string", title: "Hub Security username", required: true
+					input "hpmPassword", "password", title: "Hub Security password", required: true
 				}
 				if (showInstall)
 					paragraph "Please click Done and restart the app to continue."
 			}
+			if (!state.firstRun) {
+				def reposToShow = [:]
+				listOfRepositories.repositories.sort {i -> i.name}.each { r -> reposToShow << ["${r.location}":r.name] }
+				section ("Repositories")
+				{
+					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
+				}
+			}
 		}
 	}
 }
+
+def appButtonHandler(btn) { 
+	logDebug "${btn} was clicked"
+	switch (btn) {
+		case "btnAdd":
+			break
+		case "btnRemove":
+			break
+		case "btnAddCustom":
+		log.debug customRepo
+			break
+	}
+}
+
 def prefOptions() {
 	if (state.firstRun == true)
 		return prefPkgMatchUp()
+	if (installedRepositories == null) {
+		def repos = [] as List
+		listOfRepositories.repositories.each { it -> repos << it.location }
+		app.updateSetting("installedRepositories", repos)
+	}
 	return dynamicPage(name: "prefOptions", title: "Package Options", install: true, uninstall: false) {
 		section {
 			paragraph "What would you like to do?"
@@ -223,22 +255,26 @@ def prefPkgInstallRepository2() {
     }	
 }
 
+def getRepoName(location) {
+	return listOfRepositories.repositories.find { it -> it.location == location }?.name
+}
 
 def performRepositoryRefresh() {
 	allPackages = []
 	categories = []
 
-	for (repo in listOfRepositories.repositories) {
-		setBackgroundStatusMessage("Refreshing ${repo.name}")
-		def fileContents = getJSONFile(repo.location)
+	for (repo in installedRepositories) {
+		def repoName = getRepoName(repo)
+		setBackgroundStatusMessage("Refreshing ${repoName}")
+		def fileContents = getJSONFile(repo)
 		if (!fileContents) {
-			log.warn "Error refreshing ${repo.name}"
-			setBackgroundStatusMessage("Failed to refresh ${repo.name}")
+			log.warn "Error refreshing ${repoName}"
+			setBackgroundStatusMessage("Failed to refresh ${repoName}")
 			continue
 		}
 		for (pkg in fileContents.packages) {
 			def pkgDetails = [
-				repository: repo.name,
+				repository: repoName,
 				author: fileContents.author,
 				githubUrl: fileContents.gitHubUrl,
 				payPalUrl: fileContents.payPalUrl,
@@ -1101,12 +1137,13 @@ def performPackageMatchup() {
 	}
 	
 	def packagesToMatchAgainst = []
-	for (repo in listOfRepositories.repositories) {
-		setBackgroundStatusMessage("Refreshing ${repo.name}")
-		def fileContents = getJSONFile(repo.location)
+	for (repo in installedRepositories) {
+		def repoName = getRepoName(repo)
+		setBackgroundStatusMessage("Refreshing ${repoName}")
+		def fileContents = getJSONFile(repo)
 		if (!fileContents) {
-			log.warn "Error refreshing ${repo.name}"
-			setBackgroundStatusMessage("Failed to refresh ${repo.name}")
+			log.warn "Error refreshing ${repoName}"
+			setBackgroundStatusMessage("Failed to refresh ${repoName}")
 			continue
 		}
 		for (pkg in fileContents.packages) {
@@ -1115,7 +1152,7 @@ def performPackageMatchup() {
 				log.warn "Found a bad manifest ${pkg.location}"
 			else {
 				def pkgDetails = [
-					repository: repo.name,
+					repository: repoName,
 					name: pkg.name,
 					location: pkg.location,
 					manifest: manifestContents
