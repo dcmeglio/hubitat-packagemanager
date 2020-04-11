@@ -116,12 +116,19 @@ def prefSettings(params) {
 }
 
 def appButtonHandler(btn) {
-	if (btn == "btnAddRepo")
-		state.customRepo = true
+	switch (btn) {
+		case "btnMainMenu":
+			state.mainMenu = true
+			break
+		case "btnAddRepo":
+			state.customRepo = true
+			break
+	}
 }
 
 
 def prefOptions() {
+	state.remove("mainMenu")
 	if (state.customRepo && customRepo != "" && customRepo != null) {
 		def repoListing = getJSONFile(customRepo)
 		if (repoListing == null) {
@@ -161,7 +168,10 @@ def prefOptions() {
 
 // Install a package pathway
 def prefPkgInstall() {
-	logDebug "prefPkg"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgInstall"
+	
 	return dynamicPage(name: "prefPkgInstall", title: "Install a Package", install: true, uninstall: false) {
 		section {
 			paragraph "How would you like to install this package?"
@@ -171,20 +181,23 @@ def prefPkgInstall() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
 
 def prefPkgInstallUrl() {
-	logDebug "Install by URL"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgInstallUrl"
+
 	return dynamicPage(name: "prefPkgInstallUrl", title: "Install a Package from URL", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
 			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install (this should be a path to a <code>packageManifest.json</code> file).", required: true
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+			input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
@@ -194,7 +207,7 @@ def prefPkgInstallRepository() {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
-		logDebug "Install by Repository"
+		logDebug "prefPkgInstallRepository"
 		atomicState.inProgress = true
 		runInMillis(1,performRepositoryRefresh)
 	}
@@ -210,6 +223,9 @@ def prefPkgInstallRepository() {
 }
 
 def prefPkgInstallRepository2() {
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgInstallRepository2"
     return dynamicPage(name: "prefPkgInstallRepository2", title: "Install a Package from a Repository", nextPage: "prefInstallVerify", install: false, uninstall: false) {
 		section {
 			input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
@@ -273,7 +289,7 @@ def prefPkgInstallRepository2() {
         }
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: false, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
     }	
 }
@@ -317,7 +333,10 @@ def performRepositoryRefresh() {
 }
 
 def prefInstallVerify() {
-	logDebug "Options chosen"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefInstallVerify"
+	
     return dynamicPage(name: "prefInstallVerify", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false) {
 		section {
 			def manifest = getJSONFile(pkgInstall)
@@ -332,12 +351,15 @@ def prefInstallVerify() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
 
 def prefInstall() {
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefInstall"
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
@@ -472,7 +494,9 @@ def performInstallation() {
 
 // Modify a package pathway
 def prefPkgModify() {
-	logDebug "Modify package chosen"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgModify"
 	def pkgsToList = getInstalledPackages(true)
 	return dynamicPage(name: "prefPkgModify", title: "Modify a Package", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
 		section {
@@ -481,12 +505,15 @@ def prefPkgModify() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
 
 def prefPkgModifyChoices() {
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgModifyChoices"
 	def manifest = getInstalledManifest(pkgModify)
 	
 	def optionalApps = getOptionalAppsFromManifest(manifest)
@@ -516,7 +543,7 @@ def prefPkgModifyChoices() {
 			}
 			section {
 				paragraph "<hr>"
-				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 			}
 		}
 	}
@@ -527,14 +554,16 @@ def prefPkgModifyChoices() {
 			}
 			section {
 				paragraph "<hr>"
-				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 			}
 		}
 	}
 }
 
 def prefVerifyPackageChanges() {
-	logDebug "Modification choices made"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefVerifyPackageChanges"
 	def appsToUninstallStr = "<ul>"
 	def appsToInstallStr = "<ul>"
 	def driversToUninstallStr = "<ul>"
@@ -601,7 +630,7 @@ def prefVerifyPackageChanges() {
 			}
 			section {
 				paragraph "<hr>"
-				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 			}
 		}
 	}
@@ -612,13 +641,15 @@ def prefVerifyPackageChanges() {
 			}
 			section {
 				paragraph "<hr>"
-				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 			}
 		}
 	}
 }
 
 def prefMakePackageChanges() {
+	if (state.mainMenu)
+		return prefOptions()
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
@@ -722,7 +753,9 @@ def performModify() {
 
 // Uninstall a package pathway
 def prefPkgUninstall() {
-	logDebug "Uninstall chosen"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgUninstall"
 	def pkgsToList = getInstalledPackages(false)
 
 	return dynamicPage(name: "prefPkgUninstall", title: "Uninstall a Package", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
@@ -731,13 +764,15 @@ def prefPkgUninstall() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
 
 def prefPkgUninstallConfirm() {
-	logDebug "Confirming uninstall of ${pkgUninstall}"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgUninstallConfirm"
 	return dynamicPage(name: "prefPkgUninstallConfirm", title: "Uninstall a Package", nextPage: "prefUninstall", install: false, uninstall: false) {
 		section {
 			paragraph "The following apps and drivers will be removed:"
@@ -759,12 +794,14 @@ def prefPkgUninstallConfirm() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
 
 def prefUninstall() {
+	if (state.mainMenu)
+		return prefOptions()
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
@@ -824,6 +861,8 @@ def performUninstall() {
 }	
 
 def prefPkgUpdate() {
+	if (state.mainMenu)
+		return prefOptions()
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
@@ -850,7 +889,7 @@ def prefPkgUpdate() {
 				}
 				section {
 					paragraph "<hr>"
-					href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+					input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 				}
 			}
 		}
@@ -862,7 +901,7 @@ def prefPkgUpdate() {
 				}
 				section {
 					paragraph "<hr>"
-					href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+					input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 				}
 			}
 		}
@@ -930,7 +969,9 @@ def performUpdateCheck() {
 }
 
 def prefPkgVerifyUpdates() {
-	logDebug "Verifying update choices"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgVerifyUpdates"
 	atomicState.statusMessage = ""
 	atomicState.inProgress = null
 	atomicState.error = null
@@ -963,11 +1004,13 @@ def prefPkgVerifyUpdates() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
 def prefPkgUpdatesComplete() {
+	if (state.mainMenu)
+		return prefOptions()
 	state.releaseNotes = null
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
@@ -1127,7 +1170,9 @@ def performUpdates() {
 }
 
 def prefPkgMatchUp() {
-	logDebug "Package Match Up"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgMatchUp"
 
 	return dynamicPage(name: "prefPkgMatchUp", title: "Match Installed Apps and Drivers", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
 		section {
@@ -1136,13 +1181,15 @@ def prefPkgMatchUp() {
 		if (!state.firstRun) {
 			section {
 				paragraph "<hr>"
-				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 			}
 		}
 	}
 }
 
 def prefPkgMatchUpVerify() {
+	if (state.mainMenu)
+		return prefOptions()
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
@@ -1178,7 +1225,7 @@ def prefPkgMatchUpVerify() {
 				if (!state.firstRun) {
 					section {
 						paragraph "<hr>"
-						href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+						input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
 					}
 				}
 			}			
@@ -1265,7 +1312,9 @@ def performPackageMatchup() {
 }
 
 def prefPkgMatchUpComplete() {
-	logDebug "Completing matched packages"
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgMatchUpComplete"
 	
 	for (match in pkgMatches) {
 		def matchFromState = state.packagesWithMatches.find {it -> it.location == match}
@@ -1305,7 +1354,7 @@ def prefPkgMatchUpComplete() {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
@@ -1317,7 +1366,7 @@ def buildErrorPage(title, message) {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
@@ -1999,7 +2048,7 @@ def complete(title, message) {
 		}
 		section {
             paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
         }
 	}
 }
