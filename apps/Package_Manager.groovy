@@ -74,17 +74,11 @@ def uninstalled() {
 def prefSettings(params) {
 	if (state.manifests == null)
 		state.manifests = [:]
-	clearStateSettings(true)
-	logDebug "Refreshing repository list"
 	
-	listOfRepositories = getJSONFile(repositoryListing)
-	if (installedRepositories == null) {
-		def repos = [] as List
-		listOfRepositories.repositories.each { it -> repos << it.location }
-		app.updateSetting("installedRepositories", repos)
-	}
+	updateRepositoryListing()
+
 	installHPMManifest()
-	if (app.getInstallationState() == "COMPLETE" && params?.force != true)
+	if (app.getInstallationState() == "COMPLETE" && params?.force != true) 
 		return prefOptions()
 	else {
 		def showInstall = app.getInstallationState() == "INCOMPLETE"
@@ -104,18 +98,44 @@ def prefSettings(params) {
 			}
 			if (!state.firstRun) {
 				def reposToShow = [:]
-				listOfRepositories.repositories.sort {i -> i.name}.each { r -> reposToShow << ["${r.location}":r.name] }
+				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
+				if (state.customRepositories != null)
+					state.customRepositories.each { r -> reposToShow << ["${r.key}":r.value] }
+				reposToShow = reposToShow.sort { r -> r.value }
 				section ("Repositories")
 				{
 					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
+					if (!state.customRepo)
+					input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
+					if (state.customRepo)
+						input "customRepo", "text", title: "Enter the URL of the repository's directory listing file", required: true
 				}
 			}
 		}
 	}
 }
 
+def appButtonHandler(btn) {
+	if (btn == "btnAddRepo")
+		state.customRepo = true
+}
+
 
 def prefOptions() {
+	if (state.customRepo && customRepo != "" && customRepo != null) {
+		def repoListing = getJSONFile(customRepo)
+		if (repoListing == null) {
+			clearStateSettings(true)
+			return buildErrorPage("Error loading repository", "The repository file you specified could not be loaded.")
+		} else
+		{
+			installedRepositories << customRepo
+			if (state.customRepositories == null)
+				state.customRepositories = [:]
+			if (state.customRepositories[customRepo] == null)
+				state.customRepositories << ["${customRepo}":repoListing.author]
+		}
+	}
 	if (state.firstRun == true)
 		return prefPkgMatchUp()
 	else
@@ -1113,10 +1133,12 @@ def prefPkgMatchUp() {
 		section {
 			paragraph "This will go through all of the apps and drivers you currently have installed in Hubitat and attempt to find matching packages. This process can take minutes or even hours depending on how many apps and drivers you have installed. Click Next to continue."
 		}
-		section {
-            paragraph "<hr>"
-            href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
-        }
+		if (!state.firstRun) {
+			section {
+				paragraph "<hr>"
+				href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+			}
+		}
 	}
 }
 
@@ -1153,9 +1175,11 @@ def prefPkgMatchUpVerify() {
 					input "pkgMatches", "enum", title: "Choose packages to match", required: true, multiple: true, options: itemsForList
 					input "pkgUpToDate", "bool", title: "Assume that packages are up-to-date? If set, the currently installed version will be marked as up-to-date. If not set, next time you run an update check this package will be updated."
 				}
-				section {
-					paragraph "<hr>"
-					href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+				if (!state.firstRun) {
+					section {
+						paragraph "<hr>"
+						href(name: "prefOptions", title: "Main Menu", required: true, page: "prefOptions", description: "", width:3)
+					}
 				}
 			}			
 		}
@@ -1354,6 +1378,8 @@ def clearStateSettings(clearProgress) {
 	state.needsUpdate = [:]
 	state.specificPackageItemsToUpgrade = [:]
 	state.packagesWithMatches = []
+	state.customRepo = false
+	app.removeSetting("customRepo")
 	if (clearProgress) {
 		atomicState.statusMessage = ""
 		atomicState.inProgress = null
@@ -2048,6 +2074,27 @@ def installHPMManifest()
 			log.error "Unable to get the app ID of the package manager"
 	}
 	return true
+}
+
+def updateRepositoryListing()
+{
+	logDebug "Refreshing repository list"
+	def oldListOfRepositories = listOfRepositories
+	listOfRepositories = getJSONFile(repositoryListing)
+	if (installedRepositories == null) {
+		def repos = [] as List
+		listOfRepositories.repositories.each { it -> repos << it.location }
+		app.updateSetting("installedRepositories", repos)
+	}
+	else {
+		for (newRepo in listOfRepositories.repositories) {
+			if (!oldListOfRepositories.repositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
+				logDebug "Found new repository ${newRepo.location}"
+				installedRepositories << newRepo.location
+			}
+		}
+		app.updateSetting("installedRepositories", installedRepositories)
+	}
 }
 
 def logDebug(msg) {
