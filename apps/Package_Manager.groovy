@@ -181,7 +181,7 @@ def prefPkgInstall() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -197,7 +197,7 @@ def prefPkgInstallUrl() {
 		}
 		section {
             paragraph "<hr>"
-			input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+			input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -289,7 +289,7 @@ def prefPkgInstallRepository2() {
         }
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
     }	
 }
@@ -351,7 +351,7 @@ def prefInstallVerify() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -505,7 +505,7 @@ def prefPkgModify() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -543,7 +543,7 @@ def prefPkgModifyChoices() {
 			}
 			section {
 				paragraph "<hr>"
-				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
 			}
 		}
 	}
@@ -554,7 +554,7 @@ def prefPkgModifyChoices() {
 			}
 			section {
 				paragraph "<hr>"
-				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
 			}
 		}
 	}
@@ -630,7 +630,7 @@ def prefVerifyPackageChanges() {
 			}
 			section {
 				paragraph "<hr>"
-				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
 			}
 		}
 	}
@@ -641,7 +641,7 @@ def prefVerifyPackageChanges() {
 			}
 			section {
 				paragraph "<hr>"
-				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
 			}
 		}
 	}
@@ -764,7 +764,7 @@ def prefPkgUninstall() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -794,7 +794,7 @@ def prefPkgUninstallConfirm() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -889,7 +889,7 @@ def prefPkgUpdate() {
 				}
 				section {
 					paragraph "<hr>"
-					input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+					input "btnMainMenu", "button", title: "Main Menu", width: 3
 				}
 			}
 		}
@@ -901,7 +901,7 @@ def prefPkgUpdate() {
 				}
 				section {
 					paragraph "<hr>"
-					input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+					input "btnMainMenu", "button", title: "Main Menu", width: 3
 				}
 			}
 		}
@@ -1004,7 +1004,7 @@ def prefPkgVerifyUpdates() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -1181,7 +1181,7 @@ def prefPkgMatchUp() {
 		if (!state.firstRun) {
 			section {
 				paragraph "<hr>"
-				input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
 			}
 		}
 	}
@@ -1225,7 +1225,7 @@ def prefPkgMatchUpVerify() {
 				if (!state.firstRun) {
 					section {
 						paragraph "<hr>"
-						input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+						input "btnMainMenu", "button", title: "Main Menu", width: 3
 					}
 				}
 			}			
@@ -1354,7 +1354,7 @@ def prefPkgMatchUpComplete() {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -1366,7 +1366,7 @@ def buildErrorPage(title, message) {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
@@ -2048,7 +2048,7 @@ def complete(title, message) {
 		}
 		section {
             paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", submitOnChange: false, width: 3
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
 	}
 }
