@@ -257,7 +257,7 @@ def prefPkgInstallRepository2() {
             if (state.manifests == null)
             state.manifests = [:]
             def manifest = getJSONFile(pkgInstall)
-            log.debug pkgInstall
+
             if (manifest == null) {
                 return buildErrorPage("Invalid Package File", "${pkgInstall} does not appear to be a valid Hubitat Package or does not exist.")
             }
@@ -1328,7 +1328,6 @@ def prefPkgMatchUpComplete() {
 			for (app in manifest.apps) {
 				def installedApp = installedApps.find { it -> it.title == app.name && it.namespace == app.namespace }
 				if (installedApp != null) {
-					log.debug installedApp
 					app.heID = installedApp.id
 					if (!pkgUpToDate && app.version != null)
 						app.version = "0.0"
@@ -1373,7 +1372,6 @@ def prefPkgView() {
 	for (pkg in state.manifests) {
 		appsManaged.addAll(pkg.value.apps.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
 		driversManaged.addAll(pkg.value.drivers.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
-		logDebug driversManaged
 	}
 	appsManaged = appsManaged.sort()
 	driversManaged = driversManaged.sort()
@@ -2003,7 +2001,6 @@ def uninstallDriver(id) {
 			else {
 				def matcherText = resp.data.text.replace("\n","").replace("\r","")
 				def matcher = matcherText.find(/<div class="alert-close close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;<\/span><\/div>(.+?)<\/div>/)
-				log.debug matcher
 				if (matcher)
 					result = false
 			}
