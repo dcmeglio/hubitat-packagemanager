@@ -44,6 +44,7 @@ preferences {
 	page(name: "prefPkgMatchUp")
 	page(name: "prefPkgMatchUpVerify")
 	page(name: "prefPkgMatchUpComplete")
+	page(name: "prefPkgView")
 }
 
 import groovy.transform.Field
@@ -126,7 +127,6 @@ def appButtonHandler(btn) {
 	}
 }
 
-
 def prefOptions() {
 	state.remove("mainMenu")
 	if (state.customRepo && customRepo != "" && customRepo != null) {
@@ -161,6 +161,7 @@ def prefOptions() {
 			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall a package.")
             href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates for your installed packages.")
 			href(name: "prefPkgMatchUp", title: "Match Up", required: false, page: "prefPkgMatchUp", description: "Match up the apps and drivers you already have installed with packages available so that you can use the package manager to get future updates.")
+			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
 			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings.")
 		}
 	}
@@ -1327,6 +1328,7 @@ def prefPkgMatchUpComplete() {
 			for (app in manifest.apps) {
 				def installedApp = installedApps.find { it -> it.title == app.name && it.namespace == app.namespace }
 				if (installedApp != null) {
+					log.debug installedApp
 					app.heID = installedApp.id
 					if (!pkgUpToDate && app.version != null)
 						app.version = "0.0"
@@ -1356,6 +1358,48 @@ def prefPkgMatchUpComplete() {
             paragraph "<hr>"
             input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
+	}
+}
+
+
+def prefPkgView() {
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgView"
+
+	def appsManaged = []
+	def driversManaged = []
+	
+	for (pkg in state.manifests) {
+		appsManaged.addAll(pkg.value.apps.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
+		driversManaged.addAll(pkg.value.drivers.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
+		logDebug driversManaged
+	}
+	appsManaged = appsManaged.sort()
+	driversManaged = driversManaged.sort()
+	
+	def appsStr = "<ul>"
+	def driversStr = "<ul>"
+	
+	appsManaged.each { it -> appsStr += "<li>${it}</li>" }
+	driversManaged.each { it -> driversStr += "<li>${it}</li>" }
+	
+	appsStr += "</ul>"
+	driversStr += "</ul>"
+
+	return dynamicPage(name: "prefPkgView", title: "View Apps and Drivers", install: true, uninstall: false) {
+		section {
+			paragraph "The apps and drivers listed below are managed by the Hubitat Package Manager."
+			paragraph "<b>Managed Apps</b>"
+			paragraph appsStr
+			paragraph "<b>Managed Drivers</b>"
+			paragraph driversStr
+		}
+		section {
+			paragraph "<hr>"
+			input "btnMainMenu", "button", title: "Main Menu", width: 3
+		}
+		
 	}
 }
 
