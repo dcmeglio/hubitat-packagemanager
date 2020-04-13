@@ -122,6 +122,7 @@ def prefOptions() {
 	else
 		clearStateSettings(true)
 	if (installedRepositories == null) {
+		logDebug "No installed repositories, grabbing all"
 		def repos = [] as List
 		listOfRepositories.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
@@ -1187,6 +1188,8 @@ def performUpdates() {
 						return rollback("Failed to install driver ${driver.location}")
 				}
 			}
+			if (state.manifests[pkg] != null)
+				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
 			state.manifests[pkg] = manifest
 		}
 		else {
@@ -1367,6 +1370,9 @@ def prefPkgMatchUpComplete() {
 						driver.version = "0.0"
 				}
 			}
+			if (state.manifests[match])
+				copyInstalledItemsToNewManifest(state.manifests[match], manifest)
+			
 			state.manifests[match] = manifest
 		}
 	}
@@ -1384,7 +1390,6 @@ def prefPkgMatchUpComplete() {
         }
 	}
 }
-
 
 def prefPkgView() {
 	if (state.mainMenu)
@@ -2224,7 +2229,7 @@ def updateRepositoryListing()
 	}
 	else {
 		for (newRepo in listOfRepositories.repositories) {
-			if (!oldListOfRepositories.repositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
+			if (oldListOfRepositories.size() > 0 && !oldListOfRepositories.repositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
 				logDebug "Found new repository ${newRepo.location}"
 				installedRepositories << newRepo.location
 			}
@@ -2233,7 +2238,22 @@ def updateRepositoryListing()
 	}
 }
 
-
+def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
+	def srcInstalledApps = srcManifest.apps?.findAll { it -> it.heID != null }
+	def srcInstalledDrivers = srcManifest.drivers?.findAll { it -> it.heID != null  && destManifest.drivers?.find { dit -> dit.id == it.id && dit.heID == null}}
+	
+	for (app in srcInstalledApps) {
+		def destApp = destManifest.apps?.find { it -> it.id == app.id }
+		if (destApp && destApp.heID == null)
+			destApp.heID = app.heID
+	}
+	
+	for (driver in srcInstalledDrivers) {
+		def destDriver = destManifest.drivers?.find { it -> it.id == app.id }
+		if (destDriver && destDriver.heID == null)
+			destDriver.heID = driver.heID
+	}
+}
 
 def logDebug(msg) {
 	// For initial releases, hard coding debug mode to on.
