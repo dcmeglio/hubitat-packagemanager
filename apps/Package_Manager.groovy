@@ -406,7 +406,7 @@ def prefInstall() {
 		}
 	}
 	else {
-		return complete("Installation complete", "The package was sucessfully installed, click Done.")
+		return complete("Installation complete", "The package was sucessfully installed, click Next to return to the Main Menu.")
 	}
 }
 
@@ -697,7 +697,7 @@ def prefMakePackageChanges() {
 		}
 	}
 	else {
-		return complete("Modification complete", "The package was sucessfully modified, click Done.")
+		return complete("Modification complete", "The package was sucessfully modified, click Next to return to the Main Menu.")
 	}
 }
 
@@ -849,7 +849,7 @@ def prefUninstall() {
 		}
 	}
 	else {
-		return complete("Uninstall complete", "The package was sucessfully uninstalled, click Done.")
+		return complete("Uninstall complete", "The package was sucessfully uninstalled, click Next  to return to the Main Menu.")
 	}
 }
 
@@ -1059,7 +1059,7 @@ def prefPkgUpdatesComplete() {
 		}
 	}
 	else {
-		return complete("Updates complete", "The updates have been installed, click Done.")
+		return complete("Updates complete", "The updates have been installed, click Next to return to the Main Menu.")
 	}
 }
 
@@ -1265,7 +1265,7 @@ def prefPkgMatchUpVerify() {
 		}
 		else {
 			state.firstRun = false
-			return complete("Match Up Complete", "No matching packages were found, click Done.")
+			return complete("Match Up Complete", "No matching packages were found, click Next to return to the Main Menu.")
 		}
 
 	}	
@@ -2139,14 +2139,10 @@ def complete(title, message) {
 	manifestForRollback = null
 	clearStateSettings(false)
 	
-	return dynamicPage(name: "prefComplete", title: title, install: true, uninstall: false) {
+	return dynamicPage(name: "prefComplete", title: title, install: false, uninstall: false, nextPage: "prefOptions") {
 		section {
 			paragraph message
 		}
-		section {
-            paragraph "<hr>"
-            input "btnMainMenu", "button", title: "Main Menu", width: 3
-        }
 	}
 }
 
