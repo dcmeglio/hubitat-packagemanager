@@ -250,6 +250,11 @@ def prefInstallChoices() {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallChoices"
+	backgroundActionInProgress = null
+	statusMessage = ""		
+	errorOccurred = null
+	errorTitle = null
+	errorMessage = null
     return dynamicPage(name: "prefInstallChoices", title: "Install a Package from a Repository", nextPage: "prefInstallVerify", install: false, uninstall: false) {
 		section {
 			if (installMode == "repository")
@@ -259,11 +264,7 @@ def prefInstallChoices() {
 				if(pkgCategory) {
 					input "sortBy", "bool", title: "Sort packages by Author?", description: "Sorting", defaultValue: false, submitOnChange: true
 					input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
-					statusMessage = ""
-					backgroundActionInProgress = null
-					errorOccurred = null
-					errorTitle = null
-					errorMessage = null
+					
 					def matchingPackages = [:]
 					for (pkg in allPackages) {
 						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
@@ -384,6 +385,7 @@ def prefInstallVerify() {
 }
 
 def prefInstall() {
+	log.debug backgroundActionInProgress
 	if (state.mainMenu)
 		return prefOptions()
 	if (errorOccurred == true) {
@@ -413,6 +415,7 @@ def performInstallation() {
 		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
 	def manifest = getJSONFile(pkgInstall)
 	state.manifests[pkgInstall] = manifest
+	minimizeStoredManifests()
 	
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
@@ -1191,6 +1194,7 @@ def performUpdates() {
 			if (state.manifests[pkg] != null)
 				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
 			state.manifests[pkg] = manifest
+			minimizeStoredManifests()
 		}
 		else {
 		}
@@ -1374,6 +1378,7 @@ def prefPkgMatchUpComplete() {
 				copyInstalledItemsToNewManifest(state.manifests[match], manifest)
 			
 			state.manifests[match] = manifest
+			minimizeStoredManifests()
 		}
 	}
 	state.firstRun = false
@@ -1486,7 +1491,7 @@ def checkForUpdates() {
 
 def clearStateSettings(clearProgress) {
 	installMode = null
-	
+	log.debug "called ${clearProgress}"
 	app.removeSetting("pkgInstall")
 	app.removeSetting("appsToInstall")
 	app.removeSetting("driversToInstall")
@@ -2210,6 +2215,7 @@ def installHPMManifest()
 		if (appId != null) {
 			manifest.apps[0].heID = appId
 			state.manifests[listOfRepositories.hpm.location] = manifest
+			minimizeStoredManifests()
 		}
 		else
 			log.error "Unable to get the app ID of the package manager"
@@ -2252,6 +2258,19 @@ def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 		def destDriver = destManifest.drivers?.find { it -> it.id == app.id }
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
+	}
+}
+
+def minimizeStoredManifests() {
+	for (manifest in state.manifests) {
+		if (manifest.value.licenseFile != null)
+			manifest.value.remove("licenseFile")
+		if (manifest.value.releaseNotes != null)
+			manifest.value.remove("releaseNotes")
+		if (manifest.value.dateReleased != null)
+			manifest.value.remove("dateReleased")
+		if (manifest.value.minimumHEVersion != null)
+			manifest.value.remove("minimumHEVersion")
 	}
 }
 
