@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "0.9.0",
-	"dateReleased": "2020-04-12",
-	"releaseNotes": "Added the ability to see which apps and drivers are being managed by packages.",
+	"version": "0.9.1",
+	"dateReleased": "2020-04-13",
+	"releaseNotes": "Fixed install by URL.",
 	"apps" : [
 		{
 			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",

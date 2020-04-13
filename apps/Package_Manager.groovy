@@ -26,7 +26,6 @@ preferences {
     page(name: "prefPkgInstall")
 	page(name: "prefPkgInstallUrl")
 	page(name: "prefPkgInstallRepository")
-	page(name: "prefPkgInstallRepository2")
 	page(name: "prefPkgInstallRepositoryChoose")
 	page(name: "prefPkgModify")
     page(name: "prefPkgUpdate")
@@ -54,6 +53,8 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap listOfRepositories = [:]
 @Field static groovy.json.internal.LazyMap completedActions = [:]
 
+@Field static String installMode = ""
+
 def installed() {
     initialize()
 }
@@ -70,50 +71,6 @@ def initialize() {
 def uninstalled() {
 	logDebug "uninstalling app"
 	unschedule()
-}
-
-def prefSettings(params) {
-	if (state.manifests == null)
-		state.manifests = [:]
-	
-	updateRepositoryListing()
-
-	installHPMManifest()
-	if (app.getInstallationState() == "COMPLETE" && params?.force != true) 
-		return prefOptions()
-	else {
-		def showInstall = app.getInstallationState() == "INCOMPLETE"
-		if (showInstall)
-			state.firstRun = true
-		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: showInstall, uninstall: false) {
-			section ("Hub Security") {
-				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
-				input "hpmSecurity", "bool", title: "Hub Security Enabled", submitOnChange: true
-				if (hpmSecurity)
-				{
-					input "hpmUsername", "string", title: "Hub Security username", required: true
-					input "hpmPassword", "password", title: "Hub Security password", required: true
-				}
-				if (showInstall)
-					paragraph "Please click Done and restart the app to continue."
-			}
-			if (!state.firstRun) {
-				def reposToShow = [:]
-				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
-				if (state.customRepositories != null)
-					state.customRepositories.each { r -> reposToShow << ["${r.key}":r.value] }
-				reposToShow = reposToShow.sort { r -> r.value }
-				section ("Repositories")
-				{
-					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
-					if (!state.customRepo)
-					input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
-					if (state.customRepo)
-						input "customRepo", "text", title: "Enter the URL of the repository's directory listing file", required: true
-				}
-			}
-		}
-	}
 }
 
 def appButtonHandler(btn) {
@@ -167,6 +124,50 @@ def prefOptions() {
 	}
 }
 
+def prefSettings(params) {
+	if (state.manifests == null)
+		state.manifests = [:]
+	
+	updateRepositoryListing()
+
+	installHPMManifest()
+	if (app.getInstallationState() == "COMPLETE" && params?.force != true) 
+		return prefOptions()
+	else {
+		def showInstall = app.getInstallationState() == "INCOMPLETE"
+		if (showInstall)
+			state.firstRun = true
+		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: showInstall, uninstall: false) {
+			section ("Hub Security") {
+				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
+				input "hpmSecurity", "bool", title: "Hub Security Enabled", submitOnChange: true
+				if (hpmSecurity)
+				{
+					input "hpmUsername", "string", title: "Hub Security username", required: true
+					input "hpmPassword", "password", title: "Hub Security password", required: true
+				}
+				if (showInstall)
+					paragraph "Please click Done and restart the app to continue."
+			}
+			if (!state.firstRun) {
+				def reposToShow = [:]
+				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
+				if (state.customRepositories != null)
+					state.customRepositories.each { r -> reposToShow << ["${r.key}":r.value] }
+				reposToShow = reposToShow.sort { r -> r.value }
+				section ("Repositories")
+				{
+					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
+					if (!state.customRepo)
+					input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
+					if (state.customRepo)
+						input "customRepo", "text", title: "Enter the URL of the repository's directory listing file", required: true
+				}
+			}
+		}
+	}
+}
+
 // Install a package pathway
 def prefPkgInstall() {
 	if (state.mainMenu)
@@ -191,6 +192,7 @@ def prefPkgInstallUrl() {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefPkgInstallUrl"
+	installMode = "url"
 
 	return dynamicPage(name: "prefPkgInstallUrl", title: "Install a Package from URL", nextPage: "prefInstallChoices", install: false, uninstall: false) {
 		section {
@@ -220,40 +222,46 @@ def prefPkgInstallRepository() {
 			}
 		}
 	}
-    prefPkgInstallRepository2()
+	else {
+		installMode = "repository"
+		prefInstallChoices()
+	}
 }
 
-def prefPkgInstallRepository2() {
+def prefInstallChoices() {
 	if (state.mainMenu)
 		return prefOptions()
-	logDebug "prefPkgInstallRepository2"
-    return dynamicPage(name: "prefPkgInstallRepository2", title: "Install a Package from a Repository", nextPage: "prefInstallVerify", install: false, uninstall: false) {
+	logDebug "prefInstallChoices"
+    return dynamicPage(name: "prefInstallChoices", title: "Install a Package from a Repository", nextPage: "prefInstallVerify", install: false, uninstall: false) {
 		section {
-			input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
+			if (installMode == "repository")
+			{
+				input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
 			
-			if(pkgCategory) {
-				input "sortBy", "bool", title: "Sort packages by Author?", description: "Sorting", defaultValue: false, submitOnChange: true
-				input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
-				atomicState.statusMessage = ""
-				atomicState.inProgress = null
-				atomicState.error = null
-				atomicState.errorTitle = null
-				atomicState.errorMessage = null
-				def matchingPackages = [:]
-				for (pkg in allPackages) {
-					if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
-						continue
-					if (pkg.category == pkgCategory) {
-                    				if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
-                    				if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
-               				 }
+				if(pkgCategory) {
+					input "sortBy", "bool", title: "Sort packages by Author?", description: "Sorting", defaultValue: false, submitOnChange: true
+					input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
+					atomicState.statusMessage = ""
+					atomicState.inProgress = null
+					atomicState.error = null
+					atomicState.errorTitle = null
+					atomicState.errorMessage = null
+					def matchingPackages = [:]
+					for (pkg in allPackages) {
+						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
+							continue
+						if (pkg.category == pkgCategory) {
+										if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
+										if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
+								 }
+					}
+					def sortedMatchingPackages = matchingPackages.sort { a, b -> a.value <=> b.value }
+					input "pkgInstall", "enum", title: "Choose a package", options: sortedMatchingPackages, required: true, submitOnChange: true
 				}
-				def sortedMatchingPackages = matchingPackages.sort { a, b -> a.value <=> b.value }
-				input "pkgInstall", "enum", title: "Choose a package", options: sortedMatchingPackages, required: true, submitOnChange: true
 			}
 		}
         
-        if(pkgCategory && pkgInstall) {
+        if(pkgInstall) {
             if (state.manifests == null)
             state.manifests = [:]
             def manifest = getJSONFile(pkgInstall)
@@ -360,11 +368,11 @@ def prefInstallVerify() {
 def prefInstall() {
 	if (state.mainMenu)
 		return prefOptions()
-	logDebug "prefInstall"
 	if (atomicState.error == true) {
 		return buildErrorPage(atomicState.errorTitle, atomicState.errorMessage)
 	}
 	if (atomicState.inProgress == null) {
+		logDebug "prefInstall"
 		logDebug "Install beginning"
 		atomicState.inProgress = true
 		runInMillis(1,performInstallation)
@@ -1455,6 +1463,7 @@ def checkForUpdates() {
 }
 
 def clearStateSettings(clearProgress) {
+	installMode = null
 	app.removeSetting("pkgInstall")
 	app.removeSetting("appsToInstall")
 	app.removeSetting("driversToInstall")
@@ -2186,6 +2195,8 @@ def updateRepositoryListing()
 		app.updateSetting("installedRepositories", installedRepositories)
 	}
 }
+
+
 
 def logDebug(msg) {
 	// For initial releases, hard coding debug mode to on.
