@@ -61,7 +61,6 @@ import groovy.transform.Field
 @Field static String errorTitle = ""
 @Field static String errorMessage = ""
 @Field static boolean errorOccurred = false
-@Field static boolean backgroundActionInProgress = null
 @Field static groovy.json.internal.LazyMap packagesWithUpdates = [:]
 @Field static groovy.json.internal.LazyMap releaseNotesToDisplay = [:]
 @Field static groovy.json.internal.LazyMap specificPackageItemsWithUpdates = [:]
@@ -227,12 +226,12 @@ def prefPkgInstallRepository() {
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "prefPkgInstallRepository"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performRepositoryRefresh)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgInstallRepository", title: "Install a Package", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Refreshing repositories... Please wait..."
@@ -250,7 +249,7 @@ def prefInstallChoices() {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallChoices"
-	backgroundActionInProgress = null
+	atomicState.backgroundActionInProgress = null
 	statusMessage = ""		
 	errorOccurred = null
 	errorTitle = null
@@ -357,7 +356,7 @@ def performRepositoryRefresh() {
 	}
 	allPackages = allPackages.sort()
 	categories = categories.sort()
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }
 
 def prefInstallVerify() {
@@ -385,19 +384,19 @@ def prefInstallVerify() {
 }
 
 def prefInstall() {
-	log.debug backgroundActionInProgress
+	log.debug atomicState.backgroundActionInProgress
 	if (state.mainMenu)
 		return prefOptions()
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "prefInstall"
 		logDebug "Install beginning"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performInstallation)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefInstall", title: "Installing", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Your installation is currently in progress... Please wait..."
@@ -519,7 +518,7 @@ def performInstallation() {
 			matchedDriver.heID = id
 		}
 	}
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }
 
 // Modify a package pathway
@@ -683,12 +682,12 @@ def prefMakePackageChanges() {
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Executing modify"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performModify)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefMakePackageChanges", title: "Modifying Package", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Your changes are currently in progress... Please wait..."
@@ -778,7 +777,7 @@ def performModify() {
 		else
 			return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
 	}
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }
 
 // Uninstall a package pathway
@@ -835,12 +834,12 @@ def prefUninstall() {
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Performing uninstall"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performUninstall)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefUninstall", title: "Uninstall in progress", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Your uninstall is currently in progress... Please wait..."
@@ -887,7 +886,7 @@ def performUninstall() {
 
 	}
 	state.manifests.remove(pkgUninstall)
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }	
 
 // Update packages pathway
@@ -947,7 +946,7 @@ def performUpdateCheck() {
 		}
 	}
 	packagesWithUpdates = packagesWithUpdates.sort { it -> it.value }
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }
 
 def prefPkgUpdate() {
@@ -956,12 +955,12 @@ def prefPkgUpdate() {
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Update chosen"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performUpdateCheck)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgUpdate", title: "Checking for updates", nextPage: "prefPkgUpdate", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Checking for updates... Please wait..."
@@ -1003,7 +1002,7 @@ def prefPkgVerifyUpdates() {
 		return prefOptions()
 	logDebug "prefPkgVerifyUpdates"
 	statusMessage = ""
-	backgroundActionInProgress = null
+	atomicState.backgroundActionInProgress = null
 	errorOccurred = null
 	errorTitle = null
 	errorMessage = null
@@ -1045,12 +1044,12 @@ def prefPkgUpdatesComplete() {
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Performing update"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performUpdates)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgUpdatesComplete", title: "Installing updates", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Installing updates... Please wait..."
@@ -1199,7 +1198,7 @@ def performUpdates() {
 		else {
 		}
 	}
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }
 
 def prefPkgMatchUp() {
@@ -1226,12 +1225,12 @@ def prefPkgMatchUpVerify() {
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
-	if (backgroundActionInProgress == null) {
+	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Performing Package Matching"
-		backgroundActionInProgress = true
+		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performPackageMatchup)
 	}
-	if (backgroundActionInProgress != false) {
+	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "Matching Installed Apps and Drivers", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
 			section {
 				paragraph "Matching packages... Please wait..."
@@ -1341,7 +1340,7 @@ def performPackageMatchup() {
 		}
 	}
 	
-	backgroundActionInProgress = false
+	atomicState.backgroundActionInProgress = false
 }
 
 def prefPkgMatchUpComplete() {
@@ -1510,7 +1509,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("customRepo")
 	if (clearProgress) {
 		statusMessage = ""
-		backgroundActionInProgress = null
+		atomicState.backgroundActionInProgress = null
 		errorOccurred = null
 		errorTitle = null
 		errorMessage = null
