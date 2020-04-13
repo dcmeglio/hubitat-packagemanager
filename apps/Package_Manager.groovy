@@ -1098,7 +1098,7 @@ def performUpdates() {
 					}
 				}
 				else if (app.required) {
-					setBackgroundStatusMessage("Downloading ${app.name}")
+					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
 					def fileContents = downloadFile(app.location)
 					if (fileContents == null) {
 						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
@@ -1118,7 +1118,7 @@ def performUpdates() {
 					}
 				}
 				else if (driver.required) {
-					setBackgroundStatusMessage("Downloading ${driver.name}")
+					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
 					def fileContents = downloadFile(driver.location)
 					if (fileContents == null) {
 						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
