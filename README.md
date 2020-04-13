@@ -6,12 +6,14 @@ If you use Hub Security you will need to provide the admin username and password
 
 ![Initial Setup Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MainPage1.PNG)
 
+The app will then perform a _Match Up_. This will automatically search all of the apps and drivers you have installed and compare it to a list of those that have packages. If a match is found, the package manager will begin monitoring that package for updates.
+
 ## Installing a Package
 There are two ways to install a package. You can choose a package from a list of pre-configured repositories by choosing _From a Repository_, or, if you know the URL of a package you can choose _From a URL_
 
 ![Install Options Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Install1.PNG)
 
-If you choose to install from a repository you will first be presented with a list of categories, then the list of packages within that category. If you chose to enter a URL you will be prompted to enter the URL.
+If you choose to install from a repository you will first be presented with a list of categories, then the list of packages within that category. If you chose to enter a URL you will be prompted to enter the URL. _This is not the URL of a regular Hubitat app/driver. It is the URL of a package JSON. If you do not know what this is, you should probably choose to install from a repository_.
 
 If the package includes any optional apps or drivers you will be prompted to choose which ones you'd like to install. If you need to change your decision later you can always return and perform a _Modify_ which will let you change the optional parameters.
 
@@ -35,6 +37,21 @@ If you'd like to uninstall a package, choose the _Uninstall_ option. Choose the 
 When an author releases a new version of a package, to install it, choose the _Update_ option. If updates are available, choose the packages you wish to update and then click _Next_. You will then be able to confirm your selections and install the updates by clicking _Next_.
 
 ![Update Package](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Update1.PNG)
+
+## Match Up
+A Match Up will search through all of the apps and drivers you have installed on your hub and attempt to figure out if there are packages available that match these apps and drivers. This isn't an exact science. The Hubitat Package Manager will show you matches it found and allow you to confirm those that appear to be correct. This will then cause the selected apps and drivers to be monitored for updates. Unfortunately, the package manager has no way to know what version of a previously installed app or driver was installed. You have two options. You can either tell the package manager to assume that the version you have installed is up to date, or not. If it is set to assume it is up to date, you will not receive update notifications until the next time a new version is available. If it is set to not be up to date, you can immediately perform an _Update_ which will ensure the latest version is installed.
+
+![Match Up Packages](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MatchUp1.PNG)
+
+## View Apps and Drivers
+This will show you all of the apps and drivers you have installed that are currently being managed by the Hubitat Package Manager. You should _Not_ uninstall or update these apps and drivers manually. You should only modify them using the Hubitat Package Manager.
+
+![View Apps and Drivers](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/ViewApps1.PNG)
+
+## Package Manager Settings
+This is where you can control the settings of the Hubitat Package Manager. You can modify your Hub Security settings, choose which repositories you want to use, and also _Add a Custom Repository_.
+
+![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings1.PNG)
 
 ## Developer Information
 The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. You will need the .NET Core Framework which can be downloaded from Microsoft at:
