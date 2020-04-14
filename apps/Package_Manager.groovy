@@ -138,6 +138,10 @@ def prefOptions() {
 			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
 			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings.")
 		}
+		section {
+			paragraph "<hr>"
+			paragraph "<center>Consider donating. This app took a lot of work to make, if you find it valuable, I'd certainly appreciate a <a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'>donation</a></center>"
+		}
 	}
 }
 
