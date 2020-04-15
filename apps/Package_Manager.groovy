@@ -127,7 +127,7 @@ def prefOptions() {
 		app.updateSetting("installedRepositories", repos)
 	}
 	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
-        display()
+        displayHeader()
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
@@ -138,7 +138,7 @@ def prefOptions() {
 			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
 			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings.")
 		}
-		display2()
+		displayFooter()
 	}
 }
 
@@ -156,7 +156,7 @@ def prefSettings(params) {
 		if (showInstall)
 			state.firstRun = true
 		return dynamicPage(name: "prefSettings", title: "", nextPage: "prefOptions", install: showInstall, uninstall: false) {
-            display()
+            displayHeader()
 			section ("Hub Security") {
                 paragraph "<b>Hubitat Connection Configuration</b>"
 				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
@@ -195,7 +195,7 @@ def prefPkgInstall() {
 	logDebug "prefPkgInstall"
 	
 	return dynamicPage(name: "prefPkgInstall", title: "", install: true, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Install a Package</b>"
 			paragraph "How would you like to install this package?"
@@ -217,7 +217,7 @@ def prefPkgInstallUrl() {
 	installMode = "url"
 
 	return dynamicPage(name: "prefPkgInstallUrl", title: "", nextPage: "prefInstallChoices", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Install a Package from URL</b>"
 			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install (this should be a path to a <code>packageManifest.json</code> file).", required: true
@@ -263,7 +263,7 @@ def prefInstallChoices() {
 	errorTitle = null
 	errorMessage = null
     return dynamicPage(name: "prefInstallChoices", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Install a Package from a Repository</b>"
 			if (installMode == "repository")
@@ -375,7 +375,7 @@ def prefInstallVerify() {
 	logDebug "prefInstallVerify"
 	
     return dynamicPage(name: "prefInstallVerify", title: "", nextPage: "prefInstall", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Ready to install</b>"
 			def manifest = getJSONFile(pkgInstall)
@@ -410,7 +410,7 @@ def prefInstall() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefInstall", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Installing</b>"
 				paragraph "Your installation is currently in progress... Please wait..."
@@ -542,7 +542,7 @@ def prefPkgModify() {
 	logDebug "prefPkgModify"
 	def pkgsToList = getInstalledPackages(true)
 	return dynamicPage(name: "prefPkgModify", title: "", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Modify a Package</b>"
 			paragraph "Only packages that have optional components are shown below."
@@ -579,7 +579,7 @@ def prefPkgModifyChoices() {
 		}
 		
 		return dynamicPage(name: "prefPkgModifyChoices", title: "", nextPage: "prefVerifyPackageChanges", install: false, uninstall: false) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Modify a Package</b>"
 				paragraph "Items below that are checked are currently installed. Those that are not checked are currently <b>not</b> installed."
@@ -662,7 +662,7 @@ def prefVerifyPackageChanges() {
 
 	if (hasChanges) {
 		return dynamicPage(name: "prefVerifyPackageChanges", title: "", nextPage: "prefMakePackageChanges", install: false, uninstall: false) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Modify a Package</b>"
 				paragraph "The following changes will be made. Click next when you are ready. This may take some time."
@@ -686,7 +686,7 @@ def prefVerifyPackageChanges() {
 	}
 	else {
 		return dynamicPage(name: "prefVerifyPackageChanges", title: "", install: true, uninstall: false) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Nothing to modify</b>"
 				paragraph "You did not make any changes."
@@ -712,7 +712,7 @@ def prefMakePackageChanges() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefMakePackageChanges", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Modifying Package</b>"
 				paragraph "Your changes are currently in progress... Please wait..."
@@ -813,7 +813,7 @@ def prefPkgUninstall() {
 	def pkgsToList = getInstalledPackages(false)
 
 	return dynamicPage(name: "prefPkgUninstall", title: "", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Uninstall a Package</b>"
 			input "pkgUninstall", "enum", title: "Choose the package to uninstall", options: pkgsToList, required: true
@@ -830,7 +830,7 @@ def prefPkgUninstallConfirm() {
 		return prefOptions()
 	logDebug "prefPkgUninstallConfirm"
 	return dynamicPage(name: "prefPkgUninstallConfirm", title: "", nextPage: "prefUninstall", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Uninstall a Package</b>"
 			paragraph "The following apps and drivers will be removed:"
@@ -870,7 +870,7 @@ def prefUninstall() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefUninstall", title: "", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Uninstall in progress</b>"
 				paragraph "Your uninstall is currently in progress... Please wait..."
@@ -993,7 +993,7 @@ def prefPkgUpdate() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgUpdate", install: false, uninstall: false, refreshInterval: 2) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Checking for updates</b>"
 				paragraph "Checking for updates... Please wait..."
@@ -1005,7 +1005,7 @@ def prefPkgUpdate() {
 		if (packagesWithUpdates.size() > 0) {
 			logDebug "Updates available"
 			return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
-                display()
+                displayHeader()
 				section {
                     paragraph "<b>Updates Available</b>"
 					paragraph "Updates are available."
@@ -1020,7 +1020,7 @@ def prefPkgUpdate() {
 		else {
 			logDebug "No updates available"
 			return dynamicPage(name: "prefPkgUpdate", title: "", install: true, uninstall: false) {
-                display()
+                displayHeader()
 				section {
                     paragraph "<b>No Updates Available</b>"
 					paragraph "All packages are up to date."
@@ -1065,7 +1065,7 @@ def prefPkgVerifyUpdates() {
 	}
 	updatesToInstall += "</ul>"
 	return dynamicPage(name: "prefPkgVerifyUpdates", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Install Updates?</b>"
 			paragraph "The following updates will be installed: ${updatesToInstall} Click Next to continue. This may take some time."
@@ -1090,7 +1090,7 @@ def prefPkgUpdatesComplete() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgUpdatesComplete", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Installing Updates</b>"
 				paragraph "Installing updates... Please wait..."
@@ -1248,7 +1248,7 @@ def prefPkgMatchUp() {
 	logDebug "prefPkgMatchUp"
 
 	return dynamicPage(name: "prefPkgMatchUp", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Match Installed Apps and Drivers</b>"
 			paragraph "This will go through all of the apps and drivers you currently have installed in Hubitat and attempt to find matching packages. This process can take minutes or even hours depending on how many apps and drivers you have installed. Click Next to continue."
@@ -1275,7 +1275,7 @@ def prefPkgMatchUpVerify() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
-            display()
+            displayHeader()
 			section {
                 paragraph "<b>Matching Installed Apps and Drivers</b>"
 				paragraph "Matching packages... Please wait..."
@@ -1294,7 +1294,7 @@ def prefPkgMatchUpVerify() {
 			}
 			itemsForList = itemsForList.sort { it-> it.value}
 			return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpComplete", install: false, uninstall: false) {
-                display()
+                displayHeader()
 				section {
                     paragraph "<b>Found Matching Packages</b>"
 					paragraph "The following matches were found. There is a possibility that some may have matched incorrectly. Only check off the items that you believe are correct."
@@ -1429,7 +1429,7 @@ def prefPkgMatchUpComplete() {
 	}
 	state.firstRun = false
 	return dynamicPage(name: "prefPkgMatchUpComplete", title: "", install: true, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>Match Up Complete</b>"
 			if (pkgUpToDate)
@@ -1474,7 +1474,7 @@ def prefPkgView() {
 
 
 	return dynamicPage(name: "prefPkgView", title: "", install: true, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>View Apps and Drivers</b>"
 			paragraph "The apps and drivers listed below are managed by the Hubitat Package Manager."
@@ -1489,7 +1489,7 @@ def prefPkgView() {
 
 def buildErrorPage(title, message) {
 	return dynamicPage(name: "prefError", title: "", install: true, uninstall: false) {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>${title}</b>"
 			paragraph message
@@ -2193,7 +2193,7 @@ def complete(title, message) {
 	clearStateSettings(false)
 	
 	return dynamicPage(name: "prefComplete", title: "", install: false, uninstall: false, nextPage: "prefOptions") {
-        display()
+        displayHeader()
 		section {
             paragraph "<b>${title}</b>"
 			paragraph message
@@ -2397,13 +2397,13 @@ def getFormat(type, myText=""){			// Modified from @Stephack Code
     if(type == "title") return "<h2 style='color:#1A77C9;font-weight: bold'>${myText}</h2>"
 }
 
-def display() {
+def displayHeader() {
     section (getFormat("title", "${getImage("Blank")}" + " Hubitat Package Manager")) {
 		paragraph getFormat("line")
 	}
 }
 
-def display2(){
+def displayFooter(){
 	section() {
 		paragraph getFormat("line")
 		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br>Consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate a <a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'>donation</a></div>"
