@@ -1407,35 +1407,36 @@ def prefPkgView() {
 	def appsManaged = []
 	def driversManaged = []
 	
-	for (pkg in state.manifests) {
-		appsManaged.addAll(pkg.value.apps.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
-		driversManaged.addAll(pkg.value.drivers.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
+	def str = "<ul>"
+	
+	def sortedPkgs = state.manifests.sort{ it-> it.value.packageName}
+	for (pkg in sortedPkgs) {
+		str += "<li><b>${pkg.value.packageName}</b>"
+		if (pkg.value.documentationLink != null)
+			str += " <a href='${pkg.value.documentationLink}' target='_blank'>Documentation</a>"
+		if (pkg.value.communityLink != null)
+			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a>"
+		str += "<ul>"
+		for (app in pkg.value.apps?.sort { it -> it.name}) {
+			str += "<li>${app.name} (app)</li>"
+		}
+		for (driver in pkg.value.drivers?.sort { it -> it.name}) {
+			str += "<li>${driver.name} (driver)</li>"
+		}
+		str += "</ul></li>"
 	}
-	appsManaged = appsManaged.sort()
-	driversManaged = driversManaged.sort()
-	
-	def appsStr = "<ul>"
-	def driversStr = "<ul>"
-	
-	appsManaged.each { it -> appsStr += "<li>${it}</li>" }
-	driversManaged.each { it -> driversStr += "<li>${it}</li>" }
-	
-	appsStr += "</ul>"
-	driversStr += "</ul>"
+	str += "</ul>"
+
 
 	return dynamicPage(name: "prefPkgView", title: "View Apps and Drivers", install: true, uninstall: false) {
 		section {
 			paragraph "The apps and drivers listed below are managed by the Hubitat Package Manager."
-			paragraph "<b>Managed Apps</b>"
-			paragraph appsStr
-			paragraph "<b>Managed Drivers</b>"
-			paragraph driversStr
+			paragraph str
 		}
 		section {
 			paragraph "<hr>"
 			input "btnMainMenu", "button", title: "Main Menu", width: 3
 		}
-		
 	}
 }
 
