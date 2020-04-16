@@ -944,7 +944,7 @@ def performUpdateCheck() {
 			def appOrDriverNeedsUpdate = false
 			for (app in manifest.apps) {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app.version != null && installedApp.version != null) {
+				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
 						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
@@ -960,7 +960,7 @@ def performUpdateCheck() {
 			}
 			for (driver in manifest.drivers) {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver.version != null && installedDriver.version != null) {
+				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
 						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
