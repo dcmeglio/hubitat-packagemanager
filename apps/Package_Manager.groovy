@@ -64,6 +64,7 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap packagesWithUpdates = [:]
 @Field static groovy.json.internal.LazyMap releaseNotesToDisplay = [:]
 @Field static groovy.json.internal.LazyMap specificPackageItemsWithUpdates = [:]
+@Field static groovy.json.internal.LazyMap newlyAddedOptionalComponents = [:]
 
 @Field static List appsToInstallForModify = []
 @Field static List appsToUninstallForModify = []
@@ -396,7 +397,6 @@ def prefInstallVerify() {
 }
 
 def prefInstall() {
-	log.debug atomicState.backgroundActionInProgress
 	if (state.mainMenu)
 		return prefOptions()
 	if (errorOccurred == true) {
@@ -925,6 +925,7 @@ def performUpdateCheck() {
 	packagesWithUpdates = [:]
 	releaseNotesToDisplay = [:]
 	specificPackageItemsWithUpdates = [:]
+	newlyAddedOptionalComponents = [:]
 
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
@@ -957,7 +958,7 @@ def performUpdateCheck() {
 						logDebug "Updates found for app ${app.location} -> ${pkg.key}"
 					}
 				}
-				else if (!installedApp && app.required) {
+				else if ((!installedApp || !installedApp.required) && app.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
@@ -966,6 +967,11 @@ def performUpdateCheck() {
 						specificPackageItemsWithUpdates[pkg.key] = []
 					specificPackageItemsWithUpdates[pkg.key] << app.id
 					logDebug "New required app found ${app.location} -> ${pkg.key}"
+				}
+				else if (!installedApp && !app.required) {
+					if (newlyAddedOptionalComponents[pkg.key] == null)
+						newlyAddedOptionalComponents = []
+					newlyAddedOptionalComponents << app.id
 				}
 			}
 			for (driver in manifest.drivers) {
@@ -983,7 +989,7 @@ def performUpdateCheck() {
 						logDebug "Updates found for driver ${driver.location} -> ${pkg.key}"
 					}
 				}
-				else if (!installedDriver && driver.required) {
+				else if ((!installedDriver || !installedDriver.required) && driver.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
@@ -992,6 +998,11 @@ def performUpdateCheck() {
 						specificPackageItemsWithUpdates[pkg.key] = []
 					specificPackageItemsWithUpdates[pkg.key] << driver.id
 					logDebug "New required driver found ${driver.location} -> ${pkg.key}"
+				}
+				else if (!installedDriver && !driver.required) {
+					if (newlyAddedOptionalComponents[pkg.key] == null)
+						newlyAddedOptionalComponents = []
+					newlyAddedOptionalComponents << driver.id
 				}
 			}
 		}
@@ -1564,7 +1575,6 @@ def checkForUpdates() {
 
 def clearStateSettings(clearProgress) {
 	installMode = null
-	log.debug "called ${clearProgress}"
 	app.removeSetting("pkgInstall")
 	app.removeSetting("appsToInstall")
 	app.removeSetting("driversToInstall")
@@ -1578,6 +1588,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgUpToDate")
 	packagesWithUpdates = [:]
 	specificPackageItemsWithUpdates = [:]
+	newlyAddedOptionalComponents = [:]
 	packagesMatchingInstalledEntries = []
 	state.customRepo = false
 	app.removeSetting("customRepo")
