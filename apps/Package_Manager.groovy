@@ -957,6 +957,16 @@ def performUpdateCheck() {
 						logDebug "Updates found for app ${app.location} -> ${pkg.key}"
 					}
 				}
+				else if (!installedApp && app.required) {
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
+					}
+					if (specificPackageItemsWithUpdates[pkg.key] == null)
+						specificPackageItemsWithUpdates[pkg.key] = []
+					specificPackageItemsWithUpdates[pkg.key] << app.id
+					logDebug "New required app found ${app.location} -> ${pkg.key}"
+				}
 			}
 			for (driver in manifest.drivers) {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
@@ -972,6 +982,16 @@ def performUpdateCheck() {
 						specificPackageItemsWithUpdates[pkg.key] << driver.id
 						logDebug "Updates found for driver ${driver.location} -> ${pkg.key}"
 					}
+				}
+				else if (!installedDriver && driver.required) {
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
+					}
+					if (specificPackageItemsWithUpdates[pkg.key] == null)
+						specificPackageItemsWithUpdates[pkg.key] = []
+					specificPackageItemsWithUpdates[pkg.key] << driver.id
+					logDebug "New required driver found ${driver.location} -> ${pkg.key}"
 				}
 			}
 		}
