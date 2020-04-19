@@ -65,6 +65,8 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap releaseNotesToDisplay = [:]
 @Field static groovy.json.internal.LazyMap specificPackageItemsWithUpdates = [:]
 @Field static groovy.json.internal.LazyMap newlyAddedOptionalComponents = [:]
+@Field static groovy.json.internal.LazyMap optionalItemsToShow = [:]
+
 
 @Field static List appsToInstallForModify = []
 @Field static List appsToUninstallForModify = []
@@ -976,7 +978,7 @@ def performUpdateCheck() {
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 					}
 					appOrDriverNeedsUpdate = true
-					newlyAddedOptionalComponents[pkg.key] << app.id
+					newlyAddedOptionalComponents[pkg.key].add([id: app.id, label: "${app.name} (${state.manifests[pkg.key].packageName})"])
 					logDebug "New optional app found ${app.location} -> ${pkg.key}"
 				}
 			}
@@ -1013,7 +1015,7 @@ def performUpdateCheck() {
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 					}
 					appOrDriverNeedsUpdate = true
-					newlyAddedOptionalComponents[pkg.key] << driver.id
+					newlyAddedOptionalComponents[pkg.key].add([id: driver.id, label: "${driver.name} (${state.manifests[pkg.key].packageName})"])
 					logDebug "New optional driver found ${driver.location} -> ${pkg.key}"
 				}
 			}
@@ -1052,7 +1054,20 @@ def prefPkgUpdate() {
 				section {
                     paragraph "<b>Updates Available</b>"
 					paragraph "Updates are available."
-					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates
+					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates, submitOnChange: true
+				}
+				if (newlyAddedOptionalComponents?.size() > 0 && pkgsToUpdate != null) {					
+					for (optPkgChanges in newlyAddedOptionalComponents) {
+						if (pkgsToUpdate.contains(optPkgChanges.key)) {
+							for (optItem in optPkgChanges.value) {
+								optionalItemsToShow["${optPkgChanges.key}:${optItem.id}"] = optItem.label
+							}
+						}
+					}
+					log.debug optionalItemsToShow
+					section {
+						input "pkgsToAddOpt", "enum", title: "One or more packages has new optional components. Choose which ones to add", multiple: true, options:optionalItemsToShow
+					}
 				}
 				section {
 					paragraph "<hr>"
@@ -1104,14 +1119,24 @@ def prefPkgVerifyUpdates() {
 		}
 		
 		updatesToInstall += "</li>"
-		
 	}
+	
 	updatesToInstall += "</ul>"
+	def optStrToInstall = "<ul>"
+	log.debug optionalItemsToShow
+	for (optItem in pkgsToAddOpt) {
+		optStrToInstall += "<li>${optionalItemsToShow[optItem]}</li>"
+	}
+	optStrToInstall += "</ul>"
+	
 	return dynamicPage(name: "prefPkgVerifyUpdates", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
         displayHeader()
 		section {
             paragraph "<b>Install Updates?</b>"
-			paragraph "The following updates will be installed: ${updatesToInstall} Click Next to continue. This may take some time."
+			paragraph "The following updates will be installed: ${updatesToInstall}"
+			if (optStrToInstall != "<ul></ul>")
+				paragraph "The following optional items will be added: ${optStrToInstall}"
+			paragraph "Click Next to continue. This may take some time."
 		}
 		section {
             paragraph "<hr>"
@@ -1595,6 +1620,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("driversToModify")
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
+	app.removeSetting("pkgsToAddOpt")
 	app.removeSetting("pkgCategory")
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
@@ -1602,6 +1628,7 @@ def clearStateSettings(clearProgress) {
 	specificPackageItemsWithUpdates = [:]
 	newlyAddedOptionalComponents = [:]
 	packagesMatchingInstalledEntries = []
+	optionalItemsToShow = [:]
 	state.customRepo = false
 	app.removeSetting("customRepo")
 	if (clearProgress) {
