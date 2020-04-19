@@ -963,6 +963,7 @@ def performUpdateCheck() {
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 					}
+					appOrDriverNeedsUpdate = true
 					if (specificPackageItemsWithUpdates[pkg.key] == null)
 						specificPackageItemsWithUpdates[pkg.key] = []
 					specificPackageItemsWithUpdates[pkg.key] << app.id
@@ -971,6 +972,10 @@ def performUpdateCheck() {
 				else if (!installedApp && !app.required) {
 					if (newlyAddedOptionalComponents[pkg.key] == null)
 						newlyAddedOptionalComponents[pkg.key] = []
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+					}
+					appOrDriverNeedsUpdate = true
 					newlyAddedOptionalComponents[pkg.key] << app.id
 					logDebug "New optional app found ${app.location} -> ${pkg.key}"
 				}
@@ -995,6 +1000,7 @@ def performUpdateCheck() {
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 					}
+					appOrDriverNeedsUpdate = true
 					if (specificPackageItemsWithUpdates[pkg.key] == null)
 						specificPackageItemsWithUpdates[pkg.key] = []
 					specificPackageItemsWithUpdates[pkg.key] << driver.id
@@ -1003,6 +1009,10 @@ def performUpdateCheck() {
 				else if (!installedDriver && !driver.required) {
 					if (newlyAddedOptionalComponents[pkg.key] == null)
 						newlyAddedOptionalComponents[pkg.key] = []
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+					}
+					appOrDriverNeedsUpdate = true
 					newlyAddedOptionalComponents[pkg.key] << driver.id
 					logDebug "New optional driver found ${driver.location} -> ${pkg.key}"
 				}
@@ -2339,7 +2349,7 @@ def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 	}
 	
 	for (driver in srcInstalledDrivers) {
-		def destDriver = destManifest.drivers?.find { it -> it.id == app.id }
+		def destDriver = destManifest.drivers?.find { it -> it.id == driver.id }
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
 	}
