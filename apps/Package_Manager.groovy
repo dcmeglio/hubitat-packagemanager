@@ -958,7 +958,7 @@ def performUpdateCheck() {
 						logDebug "Updates found for app ${app.location} -> ${pkg.key}"
 					}
 				}
-				else if ((!installedApp || !installedApp.required) && app.required) {
+				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
@@ -970,8 +970,9 @@ def performUpdateCheck() {
 				}
 				else if (!installedApp && !app.required) {
 					if (newlyAddedOptionalComponents[pkg.key] == null)
-						newlyAddedOptionalComponents = []
-					newlyAddedOptionalComponents << app.id
+						newlyAddedOptionalComponents[pkg.key] = []
+					newlyAddedOptionalComponents[pkg.key] << app.id
+					logDebug "New optional app found ${app.location} -> ${pkg.key}"
 				}
 			}
 			for (driver in manifest.drivers) {
@@ -989,7 +990,7 @@ def performUpdateCheck() {
 						logDebug "Updates found for driver ${driver.location} -> ${pkg.key}"
 					}
 				}
-				else if ((!installedDriver || !installedDriver.required) && driver.required) {
+				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
@@ -1001,8 +1002,9 @@ def performUpdateCheck() {
 				}
 				else if (!installedDriver && !driver.required) {
 					if (newlyAddedOptionalComponents[pkg.key] == null)
-						newlyAddedOptionalComponents = []
-					newlyAddedOptionalComponents << driver.id
+						newlyAddedOptionalComponents[pkg.key] = []
+					newlyAddedOptionalComponents[pkg.key] << driver.id
+					logDebug "New optional driver found ${driver.location} -> ${pkg.key}"
 				}
 			}
 		}
