@@ -1033,7 +1033,6 @@ def prefPkgUpdate() {
 		}
 	}
 	else if (atomicState.backgroundActionInProgress == false) {
-		log.debug "ddd - " + atomicState.backgroundActionInProgress
 		if (packagesWithUpdates.size() > 0) {
 			logDebug "Updates available"
 			return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
