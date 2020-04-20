@@ -62,10 +62,8 @@ import groovy.transform.Field
 @Field static String errorMessage = ""
 @Field static boolean errorOccurred = false
 @Field static groovy.json.internal.LazyMap packagesWithUpdates = [:]
-@Field static groovy.json.internal.LazyMap releaseNotesToDisplay = [:]
-@Field static groovy.json.internal.LazyMap specificPackageItemsWithUpdates = [:]
-@Field static groovy.json.internal.LazyMap newlyAddedOptionalComponents = [:]
 @Field static groovy.json.internal.LazyMap optionalItemsToShow = [:]
+@Field static groovy.json.internal.LazyMap updateDetails = [:]
 
 
 @Field static List appsToInstallForModify = []
@@ -922,12 +920,20 @@ def performUninstall() {
 	atomicState.backgroundActionInProgress = false
 }	
 
+def addUpdateDetails(pkgId, pkgName, releaseNotes, updateType, item) {
+	if (updateDetails[pkgId] == null)
+		updateDetails[pkgId] = [name: null, releaseNotes: null, items: []]
+	if (pkgName != null)
+		updateDetails[pkgId].name = pkgName
+	if (releaseNotes != null)
+		updateDetails[pkgId].releaseNotes = releaseNotes
+	updateDetails[pkgId].items << [type: updateType,  id: item?.id, name: item?.name]
+	
+	logDebug "Updates found ${updateType} for ${pkgId} -> ${item?.name}"
+}
 // Update packages pathway
 def performUpdateCheck() {
 	packagesWithUpdates = [:]
-	releaseNotesToDisplay = [:]
-	specificPackageItemsWithUpdates = [:]
-	newlyAddedOptionalComponents = [:]
 
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
@@ -940,8 +946,8 @@ def performUpdateCheck() {
 
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
-			releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 			logDebug "Updates found for package ${pkg.key}"
+			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
 		} 
 		else {
 			def appOrDriverNeedsUpdate = false
@@ -951,35 +957,24 @@ def performUpdateCheck() {
 					if (newVersionAvailable(app.version, installedApp.version)) {
 						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
-							releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 						}
 						appOrDriverNeedsUpdate = true
-						if (specificPackageItemsWithUpdates[pkg.key] == null)
-							specificPackageItemsWithUpdates[pkg.key] = []
-						specificPackageItemsWithUpdates[pkg.key] << app.id
-						logDebug "Updates found for app ${app.location} -> ${pkg.key}"
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
 					}
 				}
 				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
-						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 					}
 					appOrDriverNeedsUpdate = true
-					if (specificPackageItemsWithUpdates[pkg.key] == null)
-						specificPackageItemsWithUpdates[pkg.key] = []
-					specificPackageItemsWithUpdates[pkg.key] << app.id
-					logDebug "New required app found ${app.location} -> ${pkg.key}"
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
 				}
 				else if (!installedApp && !app.required) {
-					if (newlyAddedOptionalComponents[pkg.key] == null)
-						newlyAddedOptionalComponents[pkg.key] = []
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 					}
 					appOrDriverNeedsUpdate = true
-					newlyAddedOptionalComponents[pkg.key].add([id: app.id, label: "${app.name} (${state.manifests[pkg.key].packageName})"])
-					logDebug "New optional app found ${app.location} -> ${pkg.key}"
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
 				}
 			}
 			for (driver in manifest.drivers) {
@@ -988,35 +983,24 @@ def performUpdateCheck() {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
 						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
-							releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 						}
 						appOrDriverNeedsUpdate = true
-						if (specificPackageItemsWithUpdates[pkg.key] == null)
-							specificPackageItemsWithUpdates[pkg.key] = []
-						specificPackageItemsWithUpdates[pkg.key] << driver.id
-						logDebug "Updates found for driver ${driver.location} -> ${pkg.key}"
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
 					}
 				}
 				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
-						releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 					}
 					appOrDriverNeedsUpdate = true
-					if (specificPackageItemsWithUpdates[pkg.key] == null)
-						specificPackageItemsWithUpdates[pkg.key] = []
-					specificPackageItemsWithUpdates[pkg.key] << driver.id
-					logDebug "New required driver found ${driver.location} -> ${pkg.key}"
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
 				}
 				else if (!installedDriver && !driver.required) {
-					if (newlyAddedOptionalComponents[pkg.key] == null)
-						newlyAddedOptionalComponents[pkg.key] = []
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 					}
 					appOrDriverNeedsUpdate = true
-					newlyAddedOptionalComponents[pkg.key].add([id: driver.id, label: "${driver.name} (${state.manifests[pkg.key].packageName})"])
-					logDebug "New optional driver found ${driver.location} -> ${pkg.key}"
 				}
 			}
 		}
@@ -1033,6 +1017,8 @@ def prefPkgUpdate() {
 	}
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Update chosen"
+		updateDetails = [:]
+		optionalItemsToShow = [:]
 		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performUpdateCheck)
 	}
@@ -1046,7 +1032,8 @@ def prefPkgUpdate() {
 			}
 		}
 	}
-	else {
+	else if (atomicState.backgroundActionInProgress == false) {
+		log.debug "ddd - " + atomicState.backgroundActionInProgress
 		if (packagesWithUpdates.size() > 0) {
 			logDebug "Updates available"
 			return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
@@ -1056,17 +1043,19 @@ def prefPkgUpdate() {
 					paragraph "Updates are available."
 					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates, submitOnChange: true
 				}
-				if (newlyAddedOptionalComponents?.size() > 0 && pkgsToUpdate != null) {					
-					for (optPkgChanges in newlyAddedOptionalComponents) {
-						if (pkgsToUpdate.contains(optPkgChanges.key)) {
-							for (optItem in optPkgChanges.value) {
-								optionalItemsToShow["${optPkgChanges.key}:${optItem.id}"] = optItem.label
+				if (updateDetails?.size() > 0 && pkgsToUpdate != null) {
+					for (pkgToUpdate in pkgsToUpdate) {
+						def updateDetailsForPkg = updateDetails[pkgToUpdate]
+						for (details in updateDetailsForPkg.items) {
+							if (details.type == "optapp" || details.type == "optdriver") {
+								optionalItemsToShow["${pkgToUpdate}~${details.id}"] = "${details.name} (${updateDetailsForPkg.name})"
 							}
 						}
 					}
-					log.debug optionalItemsToShow
-					section {
-						input "pkgsToAddOpt", "enum", title: "One or more packages has new optional components. Choose which ones to add", multiple: true, options:optionalItemsToShow
+					if (optionalItemsToShow?.size() > 0) {
+						section {
+							input "pkgsToAddOpt", "enum", title: "One or more packages has new optional components. Choose which ones to add", multiple: true, options:optionalItemsToShow
+						}
 					}
 				}
 				section {
@@ -1113,9 +1102,9 @@ def prefPkgVerifyUpdates() {
 	for (pkg in pkgsToUpdate) {
 		updatesToInstall += "<li>${state.manifests[pkg].packageName}"
 		
-		if (releaseNotesToDisplay[pkg]) {
+		if (updateDetails[pkg].releaseNotes != null) {
 			updatesToInstall += "<br>"
-			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${releaseNotesToDisplay[pkg]}</textarea>"
+			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${updateDetails[pkg].releaseNotes}</textarea>"
 		}
 		
 		updatesToInstall += "</li>"
@@ -1123,7 +1112,6 @@ def prefPkgVerifyUpdates() {
 	
 	updatesToInstall += "</ul>"
 	def optStrToInstall = "<ul>"
-	log.debug optionalItemsToShow
 	for (optItem in pkgsToAddOpt) {
 		optStrToInstall += "<li>${optionalItemsToShow[optItem]}</li>"
 	}
@@ -1147,7 +1135,7 @@ def prefPkgVerifyUpdates() {
 def prefPkgUpdatesComplete() {
 	if (state.mainMenu)
 		return prefOptions()
-	releaseNotesToDisplay = null
+	
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
@@ -1172,10 +1160,24 @@ def prefPkgUpdatesComplete() {
 }
 
 def shouldUpgrade(pkg, id) {
-	
-	if (specificPackageItemsWithUpdates[pkg] == null)
-		return true
-	return specificPackageItemsWithUpdates[pkg].contains(id)
+	def pkgUpdateDetails = updateDetails[pkg]
+
+	for (updateItem in pkgUpdateDetails.items) {
+		if (updateItem.type == "package")
+			return true
+		else if ((updateItem.type == "specificapp" || updateItem.type == "specificdriver") && updateItem.id == id)
+			return true
+	}
+	return false
+}
+
+def optionalItemsOnly(pkg) {
+	def pkgUpdateDetails = updateDetails[pkg]
+	for (updateItem in pkgUpdateDetails) {
+		if (updateItem.type == "package" || updateItem.type == "specificapp" || updateItem.type == "specificdriver" || updateItem.type == "reqapp" || updateItem.type == "reqdriver")
+			return false
+	}
+	return true
 }
 
 def performUpdates() {
@@ -1192,7 +1194,6 @@ def performUpdates() {
 		def installedManifest = state.manifests[pkg]
 		
 		downloadedManifests[pkg] = manifest
-
 		if (manifest) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
@@ -1205,13 +1206,28 @@ def performUpdates() {
 						appFiles[app.location] = fileContents	
 					}
 				}
-				else if (app.required) {
+				else if (app.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
 					def fileContents = downloadFile(app.location)
 					if (fileContents == null) {
 						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
 					}
 					appFiles[app.location] = fileContents
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split('~')
+						if (splitParts[0] == pkg) {
+							if (splitParts[1] == app.id) {
+								setBackgroundStatusMessage("Downloading optional component ${app.name}")
+								def fileContents = downloadFile(app.location)
+								if (fileContents == null) {
+									return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+								}
+								appFiles[app.location] = fileContents
+							}
+						}
+					}
 				}
 			}
 			for (driver in manifest.drivers) {
@@ -1225,13 +1241,26 @@ def performUpdates() {
 						driverFiles[driver.location] = fileContents
 					}
 				}
-				else if (driver.required) {
+				else if (driver.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
 					def fileContents = downloadFile(driver.location)
 					if (fileContents == null) {
 						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
 					}
 					driverFiles[driver.location] = fileContents
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split(':')
+						if (splitParts[0] == pkg && splitParts[1] == driver.id) {
+							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
+							def fileContents = downloadFile(driver.location)
+							if (fileContents == null) {
+								return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+							}
+							driverFiles[driver.location] = fileContents
+						}
+					}
 				}
 			}
 		}
@@ -1263,7 +1292,7 @@ def performUpdates() {
 							return rollback("Failed to upgrade app ${app.location}")
 					}
 				}
-				else if (app.required) {
+				else if (app.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Installing ${app.name}")
 					def id = installApp(appFiles[app.location])
 					if (id != null) {
@@ -1273,6 +1302,24 @@ def performUpdates() {
 					}
 					else
 						return rollback("Failed to install app ${app.location}")
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split('~')
+						if (splitParts[0] == pkg) {
+							if (splitParts[1] == app.id) {
+								setBackgroundStatusMessage("Installing ${app.name}")
+								def id = installApp(appFiles[app.location])
+								if (id != null) {
+									app.heID = id
+									if (app.oauth)
+										enableOAuth(app.heID)
+								}
+								else
+									return rollback("Failed to install app ${app.location}")
+							}
+						}
+					}
 				}
 			}
 			
@@ -1289,7 +1336,7 @@ def performUpdates() {
 							return rollback("Failed to upgrade driver ${driver.location}")
 					}
 				}
-				else if (driver.required) {
+				else if (driver.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Installing ${driver.name}")
 					def id = installDriver(driverFiles[driver.location])
 					if (id != null) {
@@ -1297,6 +1344,22 @@ def performUpdates() {
 					}
 					else
 						return rollback("Failed to install driver ${driver.location}")
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split('~')
+						if (splitParts[0] == pkg) {
+							if (splitParts[1] == driver.id) {
+								setBackgroundStatusMessage("Installing ${driver.name}")
+								def id = installApp(appFiles[driver.location])
+								if (id != null) {
+									driver.heID = id
+								}
+								else
+									return rollback("Failed to install driver ${driver.location}")
+							}
+						}
+					}
 				}
 			}
 			if (state.manifests[pkg] != null)
@@ -1581,22 +1644,38 @@ def checkForUpdates() {
 		else {
 			for (app in manifest.apps) {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app.version != null && installedApp.version != null) {
+				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
 						updates = true
 						break
 					}
+				}
+				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
+					updates = true
+					break
+				}
+				else if (!installedApp && !app.required) {
+					updates = true
+					break
 				}
 			}
 			if (updates)
 				break
 			for (driver in manifest.drivers) {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver.version != null && installedDriver.version != null) {
+				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
 						updates = true
 						break
 					}
+				}
+				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
+					updates = true
+					break
+				}
+				else if (!installedDriver && !driver.required) {
+					updates = true
+					break
 				}
 			}
 			if (updates)
@@ -1625,8 +1704,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
 	packagesWithUpdates = [:]
-	specificPackageItemsWithUpdates = [:]
-	newlyAddedOptionalComponents = [:]
+	updateDetails = [:]
 	packagesMatchingInstalledEntries = []
 	optionalItemsToShow = [:]
 	state.customRepo = false
@@ -1695,7 +1773,7 @@ def isAppInstalled(manifest, id) {
 def isDriverInstalled(manifest, id) {
 	for (driver in manifest.drivers) {
 		if (driver.id == id) {
-			if (driver.heID != null)
+			if (driver.heID != null) 
 				return true
 			else
 				return false
