@@ -2479,38 +2479,9 @@ def logDebug(msg) {
 	//}
 }
 
-// Thanks to gavincampbell for the code below!
-def getAppList() {
-    def params = [
-    	uri: "http://127.0.0.1:8080/app/list",
-        textParser: true,
-        headers: [
-			Cookie: state.cookie
-		]
-      ]
-    
-	def result = []
-    try {
-        httpGet(params) { resp ->     
-            def matcherText = resp.data.text.replace("\n","").replace("\r","")
-            def matcher = matcherText.findAll(/(<tr class="app-row" data-app-id="[^<>]+">.*?<\/tr>)/).each {
-                def allFields = it.findAll(/(<td .*?<\/td>)/) // { match,f -> return f } 
-                def id = it.find(/data-app-id="([^"]+)"/) { match,i -> return i.trim() }
-                def title = allFields[0].find(/title="([^"]+)/) { match,t -> return t.trim() }
-                def namespace = allFields[1].find(/>([^"]+)</) { match,ns -> return ns.trim() }
-                result += [id:id,title:title,namespace:namespace]
-            }
-        }
-    } catch (e) {
-		log.error "Error retrieving installed apps: ${e}"
-    }
-	return result
-}
-
 def getDriverList() {
     def params = [
-    	uri: "http://127.0.0.1:8080/driver/list",
-        textParser: true,
+    	uri: "http://127.0.0.1:8080/device/drivers",
 	    headers: [
 			Cookie: state.cookie
 		]
@@ -2518,14 +2489,11 @@ def getDriverList() {
     def result = []
     try {
         httpGet(params) { resp ->
-            def matcherText = resp.data.text.replace("\n","").replace("\r","")
-            def matcher = matcherText.findAll(/(<tr class="driver-row" data-app-id="[^<>]+">.*?<\/tr>)/).each {
-                def allFields = it.findAll(/(<td .*?<\/td>)/) // { match,f -> return f } 
-                def title = it.find(/title="([^"]+)/) { match,t -> return t }
-                def id = it.find(/data-app-id="([^"]+)"/) { match,i -> return i.trim() }
-                def namespace = allFields[1].find(/>([^"]+)</) { match,ns -> return ns.trim() }
-                result += [id:id,title:title,namespace:namespace]
+			for (driver in resp.data.drivers) {
+				if (driver.type == "usr")
+					result += [id:driver.id.toString(),title:driver.name,namespace:driver.namespace]
 			}
+			log.debug result
         }
     } catch (e) {
         log.error "Error retrieving installed drivers: ${e}"
@@ -2556,3 +2524,33 @@ def displayFooter(){
 		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br>Consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate a <a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'>donation</a></div>"
 	}       
 }
+
+
+// Thanks to gavincampbell for the code below!
+def getAppList() {
+    def params = [
+    	uri: "http://127.0.0.1:8080/app/list",
+        textParser: true,
+        headers: [
+			Cookie: state.cookie
+		]
+      ]
+    
+	def result = []
+    try {
+        httpGet(params) { resp ->     
+            def matcherText = resp.data.text.replace("\n","").replace("\r","")
+            def matcher = matcherText.findAll(/(<tr class="app-row" data-app-id="[^<>]+">.*?<\/tr>)/).each {
+                def allFields = it.findAll(/(<td .*?<\/td>)/) // { match,f -> return f } 
+                def id = it.find(/data-app-id="([^"]+)"/) { match,i -> return i.trim() }
+                def title = allFields[0].find(/title="([^"]+)/) { match,t -> return t.trim() }
+                def namespace = allFields[1].find(/>([^"]+)</) { match,ns -> return ns.trim() }
+                result += [id:id,title:title,namespace:namespace]
+            }
+        }
+    } catch (e) {
+		log.error "Error retrieving installed apps: ${e}"
+    }
+	return result
+}
+
