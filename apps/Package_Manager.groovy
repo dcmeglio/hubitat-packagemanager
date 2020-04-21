@@ -953,6 +953,7 @@ def performUpdateCheck() {
 		else {
 			def appOrDriverNeedsUpdate = false
 			for (app in manifest.apps) {
+                try {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
 				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
@@ -977,8 +978,11 @@ def performUpdateCheck() {
 					appOrDriverNeedsUpdate = true
 					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
 				}
+                }
+                catch (any) { log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer. "}
 			}
 			for (driver in manifest.drivers) {
+        try {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
 				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
@@ -1003,6 +1007,8 @@ def performUpdateCheck() {
 					}
 					appOrDriverNeedsUpdate = true
 				}
+                }
+                catch (any) {log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer."}
 			}
 		}
 	}
@@ -2555,4 +2561,3 @@ def getAppList() {
     }
 	return result
 }
-
