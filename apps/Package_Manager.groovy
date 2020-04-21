@@ -1937,6 +1937,8 @@ def verifyHEVersion(versionStr) {
 def newVersionAvailable(versionStr, installedVersionStr) {
 	if (versionStr == null)
 		return false
+	versionStr = versionStr.replaceAll("[^\\d.]", "")
+    installedVersionStr = installedVersionStr?.replaceAll("[^\\d.]", "")
 	def installedVersionParts = installedVersionStr.split(/\./)
 	def newVersionParts = versionStr.split(/\./)
 
@@ -2493,7 +2495,6 @@ def getDriverList() {
 				if (driver.type == "usr")
 					result += [id:driver.id.toString(),title:driver.name,namespace:driver.namespace]
 			}
-			log.debug result
         }
     } catch (e) {
         log.error "Error retrieving installed drivers: ${e}"
