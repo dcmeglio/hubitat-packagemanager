@@ -4,7 +4,7 @@
 	"author": "Dominick Meglio",
 	"version": "1.2.0",
 	"dateReleased": "2020-04-21",
-	"releaseNotes": "Added the ability to turn debug logging on/off. Added the ability to uninstall multiple packages at once.",
+	"releaseNotes": "Added the ability to turn debug logging on/off. Added the ability to uninstall multiple packages at once. Added the ability to specify what time update checking occurs and receive a notification of new updates available.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
