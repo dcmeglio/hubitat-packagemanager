@@ -171,6 +171,9 @@ def prefSettings(params) {
 					paragraph "Please click Done and restart the app to continue."
 			}
 			if (!state.firstRun) {
+				section ("Settings") {
+					input "debugOutput", "bool", title: "Enable debug logging", defaultValue: true
+				}
 				def reposToShow = [:]
 				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
 				if (state.customRepositories != null)
@@ -2483,9 +2486,9 @@ def minimizeStoredManifests() {
 
 def logDebug(msg) {
 	// For initial releases, hard coding debug mode to on.
-    //if (settings?.debugOutput) {
+    if (settings?.debugOutput) {
 		log.debug msg
-	//}
+	}
 }
 
 def getDriverList() {

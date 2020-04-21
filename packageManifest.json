@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"dateReleased": "2020-04-21",
-	"releaseNotes": "Fixed various bugs. Updates now allow you to add new optional addons. Added documentation and community links to the View Apps page.",
+	"releaseNotes": "Added the ability to turn debug logging on/off.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
