@@ -82,7 +82,12 @@ def updated() {
 }
 
 def initialize() {
-	schedule("01 00 00 ? * *", checkForUpdates)
+	def timeOfDayForUpdateChecks
+	if (updateCheckTime == null)
+		timeOfDayForUpdateChecks = timeToday("00:00")
+	else
+		timeOfDayForUpdateChecks = timeToday(updateCheckTime, location.timeZone)
+	schedule("00 ${timeOfDayForUpdateChecks.minutes} ${timeOfDayForUpdateChecks.hours} ? * *", checkForUpdates)
 }
 
 def uninstalled() {
@@ -119,8 +124,10 @@ def prefOptions() {
 	}
 	if (state.firstRun == true)
 		return prefPkgMatchUp()
-	else
+	else {
 		clearStateSettings(true)
+		initialize()
+	}
 	if (installedRepositories == null) {
 		logDebug "No installed repositories, grabbing all"
 		def repos = [] as List
@@ -171,8 +178,11 @@ def prefSettings(params) {
 					paragraph "Please click Done and restart the app to continue."
 			}
 			if (!state.firstRun) {
-				section ("Settings") {
+				section ("Logging") {
 					input "debugOutput", "bool", title: "Enable debug logging", defaultValue: true
+				}
+				section ("Automatic Updates") {
+					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true				
 				}
 				def reposToShow = [:]
 				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
