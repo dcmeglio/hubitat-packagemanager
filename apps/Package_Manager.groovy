@@ -133,7 +133,7 @@ def prefOptions() {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
 			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package. This allows you to add or remove optional components.")
-			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall a package.")
+			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall packages.")
             href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates for your installed packages.")
 			href(name: "prefPkgMatchUp", title: "Match Up", required: false, page: "prefPkgMatchUp", description: "Match up the apps and drivers you already have installed with packages available so that you can use the package manager to get future updates.")
 			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
@@ -819,8 +819,8 @@ def prefPkgUninstall() {
 	return dynamicPage(name: "prefPkgUninstall", title: "", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
         displayHeader()
 		section {
-            paragraph "<b>Uninstall a Package</b>"
-			input "pkgUninstall", "enum", title: "Choose the package to uninstall", options: pkgsToList, required: true
+            paragraph "<b>Uninstall Packages</b>"
+			input "pkgUninstall", "enum", title: "Choose the package(s) to uninstall", options: pkgsToList, required: true, multiple: true
 		}
 		section {
             paragraph "<hr>"
@@ -836,19 +836,21 @@ def prefPkgUninstallConfirm() {
 	return dynamicPage(name: "prefPkgUninstallConfirm", title: "", nextPage: "prefUninstall", install: false, uninstall: false) {
         displayHeader()
 		section {
-            paragraph "<b>Uninstall a Package</b>"
+            paragraph "<b>Uninstall Packages</b>"
 			paragraph "The following apps and drivers will be removed:"
 			
 			def str = "<ul>"
-			def pkg = state.manifests[pkgUninstall]
-			for (app in pkg.apps) {
-				if (app.heID != null)
-					str += "<li>${app.name} (App)</li>"
-			}
-			
-			for (driver in pkg.drivers) {
-				if (driver.heID != null)
-					str += "<li>${driver.name} (Device Driver)</li>"
+			for (pkgToUninstall in pkgUninstall) {
+				def pkg = state.manifests[pkgToUninstall]
+				for (app in pkg.apps) {
+					if (app.heID != null)
+						str += "<li>${app.name} (App)</li>"
+				}
+				
+				for (driver in pkg.drivers) {
+					if (driver.heID != null)
+						str += "<li>${driver.name} (Device Driver)</li>"
+				}
 			}
 			str += "</ul>"
 			paragraph str
@@ -890,37 +892,40 @@ def prefUninstall() {
 def performUninstall() {
 	if (!login())
 		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
-		
-	def pkg = state.manifests[pkgUninstall]
 	
-	initializeRollbackState("uninstall")
-			
-	for (app in pkg.apps) {
-		if (app.heID != null) {
-			def sourceCode = getAppSource(app.heID)
-			setBackgroundStatusMessage("Uninstalling ${app.name}")
-			if (uninstallApp(app.heID))
-			{
-				completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
-			}
-			else 
-				return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.")
-		}
-	}
+	for (pkgToUninstall in pkgUninstall) {
+		def pkg = state.manifests[pkgToUninstall]
 	
-	for (driver in pkg.drivers) {
-		if (driver.heID != null) {
-			def sourceCode = getDriverSource(driver.heID)
-			setBackgroundStatusMessage("Uninstalling ${driver.name}")
-			if (uninstallDriver(driver.heID)) {
-				completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
+		initializeRollbackState("uninstall")
+				
+		for (app in pkg.apps) {
+			if (app.heID != null) {
+				def sourceCode = getAppSource(app.heID)
+				setBackgroundStatusMessage("Uninstalling ${app.name}")
+				if (uninstallApp(app.heID))
+				{
+					completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
+				}
+				else 
+					return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.")
 			}
-			else 
-				return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
 		}
+	
+		for (driver in pkg.drivers) {
+			if (driver.heID != null) {
+				def sourceCode = getDriverSource(driver.heID)
+				setBackgroundStatusMessage("Uninstalling ${driver.name}")
+				if (uninstallDriver(driver.heID)) {
+					completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
+				}
+				else 
+					return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
+			}
 
+		}
+		state.manifests.remove(pkgToUninstall)
 	}
-	state.manifests.remove(pkgUninstall)
+	
 	atomicState.backgroundActionInProgress = false
 }	
 
