@@ -263,6 +263,7 @@ def prefInstallChoices() {
 	errorOccurred = null
 	errorTitle = null
 	errorMessage = null
+	
     return dynamicPage(name: "prefInstallChoices", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
         displayHeader()
 		section {
@@ -280,9 +281,9 @@ def prefInstallChoices() {
 						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
 							continue
 						if (pkg.category == pkgCategory) {
-										if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
-										if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
-								 }
+							if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
+							if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
+						}
 					}
 					def sortedMatchingPackages = matchingPackages.sort { a, b -> a.value <=> b.value }
 					input "pkgInstall", "enum", title: "Choose a package", options: sortedMatchingPackages, required: true, submitOnChange: true
@@ -2522,7 +2523,7 @@ def displayHeader() {
 def displayFooter(){
 	section() {
 		paragraph getFormat("line")
-		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br>Consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate a <a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'>donation</a></div>"
+		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
 	}       
 }
 
