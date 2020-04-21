@@ -166,7 +166,6 @@ def prefSettings(params) {
 		return dynamicPage(name: "prefSettings", title: "", nextPage: "prefOptions", install: showInstall, uninstall: false) {
             displayHeader()
 			section ("Hub Security") {
-                paragraph "<b>Hubitat Connection Configuration</b>"
 				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
 				input "hpmSecurity", "bool", title: "Hub Security Enabled", submitOnChange: true
 				if (hpmSecurity)
@@ -459,7 +458,7 @@ def prefInstall() {
 
 def performInstallation() {
 	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
 	def manifest = getJSONFile(pkgInstall)
 	state.manifests[pkgInstall] = manifest
 	minimizeStoredManifests()
@@ -476,7 +475,7 @@ def performInstallation() {
 		def fileContents = downloadFile(requiredApp.value.location)
 		if (fileContents == null) {
 			state.manifests.remove(pkgInstall)
-			return triggerError("Error downloading file", "An error occurred downloading ${requiredApp.value.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${requiredApp.value.location}", false)
 		}
 		appFiles[requiredApp.value.location] = fileContents
 	}
@@ -487,7 +486,7 @@ def performInstallation() {
 			def fileContents = downloadFile(matchedApp.location)
 			if (fileContents == null) {
 				state.manifests.remove(pkgInstall)
-				return triggerError("Error downloading file", "An error occurred downloading ${matchedApp.location}")
+				return triggerError("Error downloading file", "An error occurred downloading ${matchedApp.location}", false)
 			}
 			appFiles[matchedApp.location] = fileContents
 		}
@@ -497,7 +496,7 @@ def performInstallation() {
 		def fileContents = downloadFile(requiredDriver.value.location)
 		if (fileContents == null) {
 			state.manifests.remove(pkgInstall)
-			return triggerError("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}", false)
 		}
 		driverFiles[requiredDriver.value.location] = fileContents
 	}
@@ -509,7 +508,7 @@ def performInstallation() {
 			def fileContents = downloadFile(matchedDriver.location)
 			if (fileContents == null) {
 				state.manifests.remove(pkgInstall)
-				return triggerError("Error downloading file", "An error occurred downloading ${matchedDriver.location}")
+				return triggerError("Error downloading file", "An error occurred downloading ${matchedDriver.location}", false)
 			}
 			driverFiles[matchedDriver.location] = fileContents
 		}
@@ -522,7 +521,7 @@ def performInstallation() {
 		def id = installApp(appFiles[requiredApp.value.location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install app ${requiredApp.value.location}")
+			return rollback("Failed to install app ${requiredApp.value.location}", false)
 		}
 		requiredApp.value.heID = id
 		if (requiredApp.value.oauth)
@@ -536,7 +535,7 @@ def performInstallation() {
 			def id = installApp(appFiles[matchedApp.location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install app ${matchedApp.location}")
+				return rollback("Failed to install app ${matchedApp.location}", false)
 			}
 			matchedApp.heID = id
 			if (matchedApp.oauth)
@@ -549,7 +548,7 @@ def performInstallation() {
 		def id = installDriver(driverFiles[requiredDriver.value.location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install driver ${requiredDriver.value.location}")
+			return rollback("Failed to install driver ${requiredDriver.value.location}", false)
 		}
 		requiredDriver.value.heID = id
 	}
@@ -561,7 +560,7 @@ def performInstallation() {
 			def id = installDriver(driverFiles[matchedDriver.location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install driver ${matchedDriver.location}")
+				return rollback("Failed to install driver ${matchedDriver.location}", false)
 			}
 			matchedDriver.heID = id
 		}
@@ -761,7 +760,7 @@ def prefMakePackageChanges() {
 
 def performModify() {
 	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
 	
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
@@ -773,7 +772,7 @@ def performModify() {
 		setBackgroundStatusMessage("Downloading ${app.name}")
 		def fileContents = downloadFile(app.location)
 		if (fileContents == null) {
-			return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${app.location}", false)
 		}
 		appFiles[app.location] = fileContents
 	}
@@ -782,7 +781,7 @@ def performModify() {
 		setBackgroundStatusMessage("Downloading ${driver.name}")
 		def fileContents = downloadFile(driver.location)
 		if (fileContents == null) {
-			return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+			return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", false)
 		}
 		driverFiles[driver.location] = fileContents
 	}
@@ -800,7 +799,7 @@ def performModify() {
 				enableOAuth(app.heID)
 		}
 		else
-			return rollback("Failed to install app ${app.location}")
+			return rollback("Failed to install app ${app.location}", false)
 	}
 	for (appToUninstall in appsToUninstallForModify) {
 		def app = getAppById(manifest, appToUninstall)
@@ -811,7 +810,7 @@ def performModify() {
 			app.heID = null
 		}
 		else
-			return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.")
+			return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.", false)
 	}
 	
 	for (driverToInstall in driversToInstallForModify) {
@@ -822,7 +821,7 @@ def performModify() {
 			driver.heID = id
 		}
 		else
-			return rollback("Failed to install driver ${driver.location}, it may be in use.")
+			return rollback("Failed to install driver ${driver.location}, it may be in use.", false)
 		
 	}
 	for (driverToUninstall in driversToUninstallForModify) {
@@ -834,7 +833,7 @@ def performModify() {
 			driver.heID = null
 		}
 		else
-			return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
+			return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.", false)
 	}
 	atomicState.backgroundActionInProgress = false
 }
@@ -921,7 +920,7 @@ def prefUninstall() {
 
 def performUninstall() {
 	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
 	
 	for (pkgToUninstall in pkgUninstall) {
 		def pkg = state.manifests[pkgToUninstall]
@@ -937,7 +936,7 @@ def performUninstall() {
 					completedActions["appUninstalls"] << [id:app.id,source:sourceCode]
 				}
 				else 
-					return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.")
+					return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.", false)
 			}
 		}
 	
@@ -949,7 +948,7 @@ def performUninstall() {
 					completedActions["driverUninstalls"] << [id:driver.id,source:sourceCode]
 				}
 				else 
-					return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.")
+					return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.", false)
 			}
 
 		}
@@ -1225,9 +1224,9 @@ def optionalItemsOnly(pkg) {
 	return true
 }
 
-def performUpdates() {
+def performUpdates(runInBackground) {
 	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", runInBackground)
 		
 	// Download all files first to reduce the chances of a network error
 	def downloadedManifests = [:]
@@ -1246,7 +1245,7 @@ def performUpdates() {
 						setBackgroundStatusMessage("Downloading ${app.name}")
 						def fileContents = downloadFile(app.location)
 						if (fileContents == null) {
-							return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+							return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
 						}
 						appFiles[app.location] = fileContents	
 					}
@@ -1255,7 +1254,7 @@ def performUpdates() {
 					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
 					def fileContents = downloadFile(app.location)
 					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+						return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
 					}
 					appFiles[app.location] = fileContents
 				}
@@ -1267,7 +1266,7 @@ def performUpdates() {
 								setBackgroundStatusMessage("Downloading optional component ${app.name}")
 								def fileContents = downloadFile(app.location)
 								if (fileContents == null) {
-									return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+									return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
 								}
 								appFiles[app.location] = fileContents
 							}
@@ -1281,7 +1280,7 @@ def performUpdates() {
 						setBackgroundStatusMessage("Downloading ${driver.name}")
 						def fileContents = downloadFile(driver.location)
 						if (fileContents == null) {
-							return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+							return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
 						}
 						driverFiles[driver.location] = fileContents
 					}
@@ -1290,7 +1289,7 @@ def performUpdates() {
 					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
 					def fileContents = downloadFile(driver.location)
 					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
 					}
 					driverFiles[driver.location] = fileContents
 				}
@@ -1301,7 +1300,7 @@ def performUpdates() {
 							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
 							def fileContents = downloadFile(driver.location)
 							if (fileContents == null) {
-								return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+								return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
 							}
 							driverFiles[driver.location] = fileContents
 						}
@@ -1310,7 +1309,7 @@ def performUpdates() {
 			}
 		}
 		else {
-			return triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.")
+			return triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.", runInBackground)
 		}
 	}
 	
@@ -1334,7 +1333,7 @@ def performUpdates() {
 								enableOAuth(app.heID)
 						}
 						else
-							return rollback("Failed to upgrade app ${app.location}")
+							return rollback("Failed to upgrade app ${app.location}", runInBackground)
 					}
 				}
 				else if (app.required && !optionalItemsOnly(pkg)) {
@@ -1346,7 +1345,7 @@ def performUpdates() {
 							enableOAuth(app.heID)
 					}
 					else
-						return rollback("Failed to install app ${app.location}")
+						return rollback("Failed to install app ${app.location}", runInBackground)
 				}
 				else {
 					for (optItem in pkgsToAddOpt) {
@@ -1361,7 +1360,7 @@ def performUpdates() {
 										enableOAuth(app.heID)
 								}
 								else
-									return rollback("Failed to install app ${app.location}")
+									return rollback("Failed to install app ${app.location}", runInBackground)
 							}
 						}
 					}
@@ -1378,7 +1377,7 @@ def performUpdates() {
 							completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 						}
 						else
-							return rollback("Failed to upgrade driver ${driver.location}")
+							return rollback("Failed to upgrade driver ${driver.location}", runInBackground)
 					}
 				}
 				else if (driver.required && !optionalItemsOnly(pkg)) {
@@ -1388,7 +1387,7 @@ def performUpdates() {
 						driver.heID = id
 					}
 					else
-						return rollback("Failed to install driver ${driver.location}")
+						return rollback("Failed to install driver ${driver.location}", runInBackground)
 				}
 				else {
 					for (optItem in pkgsToAddOpt) {
@@ -1401,7 +1400,7 @@ def performUpdates() {
 									driver.heID = id
 								}
 								else
-									return rollback("Failed to install driver ${driver.location}")
+									return rollback("Failed to install driver ${driver.location}", runInBackground)
 							}
 						}
 					}
@@ -1415,7 +1414,10 @@ def performUpdates() {
 		else {
 		}
 	}
-	atomicState.backgroundActionInProgress = false
+	if (runInBackground != true)
+		atomicState.backgroundActionInProgress = false
+	else
+		return true
 }
 
 def prefPkgMatchUp() {
@@ -1495,7 +1497,7 @@ def prefPkgMatchUpVerify() {
 
 def performPackageMatchup() {
 	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.")
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
 		
 	setBackgroundStatusMessage("Retrieving list of installed apps")
 	def allInstalledApps = getAppList()
@@ -1678,63 +1680,105 @@ def buildErrorPage(title, message) {
 }
 
 def checkForUpdates() {
-	def updates = false
+	def allUpgradeCount = 0
+	def packagesWithUpdates = []
 	for (pkg in state.manifests) {
 		def manifest = getJSONFile(pkg.key)
 		
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			updates = true
-			break
+			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
+			packagesWithUpdates << pkg.key
 		} 
 		else {
 			for (app in manifest.apps) {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
 				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
-						updates = true
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+						packagesWithUpdates << pkg.key
 						break
 					}
 				}
 				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
-					updates = true
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
+					packagesWithUpdates << pkg.key
 					break
 				}
 				else if (!installedApp && !app.required) {
-					updates = true
+					packagesWithUpdates << pkg.key
 					break
 				}
 			}
-			if (updates)
-				break
+			if (packagesWithUpdates.contains(pkg.key))
+				continue
 			for (driver in manifest.drivers) {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
 				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
-						updates = true
+						packagesWithUpdates << pkg.key
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
 						break
 					}
 				}
 				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
-					updates = true
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", app)
+					packagesWithUpdates << pkg.key
 					break
 				}
 				else if (!installedDriver && !driver.required) {
-					updates = true
+					packagesWithUpdates << pkg.key
 					break
 				}
 			}
-			if (updates)
-				break
 		}
 	}
-	if (!updates)
+	if (packagesWithUpdates?.size() == 0)
 		app.updateLabel("Hubitat Package Manager")
 	else {
-		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+		allUpgradeCount = packagesWithUpdates?.size()?: 0
+		
 		if (notifyUpdatesAvailable && !state.updatesNotified) {
 			state.updatesNotified = true
 			notifyDevices*.deviceNotification("Hubitat Package updates are available")
 		}
+		
+		if (autoUpdates) {
+			if (!autoUpdateAll)
+				packagesWithUpdates.removeIf { it -> !appsToAutoUpdate.contains(it)}
+			if (packagesWithUpdates?.size() > 0) {
+				app.updateSetting("pkgsToUpdate", packagesWithUpdates)
+				pkgsToUpdate = packagesWithUpdates
+				try
+				{
+					def result = performUpdates(true)
+					if (result == true) {
+						if (notifyOnSuccess) {
+							notifyUpdateSuccessDevices*.deviceNotification("The packages were updated successfully")
+							if (packagesWithUpdates.size() < allUpgradeCount)
+								app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+							else
+								app.updateLabel("Hubitat Package Manager")
+						}
+					}
+					else {
+						log.error "Automatic update failure: ${result}"
+						if (notifyOnFailure) {
+							notifyUpdateFailureDevices*.deviceNotification("One or more packages failed to automatically update. Check the logs for more information")
+							app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+						}
+					}
+				}
+				catch (e) {
+					log.error "Automatic update failure: ${e}"
+					if (notifyOnFailure) {
+						notifyUpdateFailureDevices*.deviceNotification("One or more packages failed to automatically update. Check the logs for more information")
+						app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+					}
+				}
+			}
+		}
+		else
+			app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 	}
 
 }
@@ -2380,7 +2424,9 @@ def getBackgroundStatusMessage() {
 	return statusMessage
 }
 
-def triggerError(title, message) {
+def triggerError(title, message, runInBackground) {
+	if (runInBackground == true)
+		return message
 	errorOccurred = true
 	errorTitle = title
 	errorMessage = message
@@ -2401,7 +2447,7 @@ def complete(title, message) {
 	}
 }
 
-def rollback(error) {
+def rollback(error, runInBackground) {
 	def manifest = null
 	if (installAction == "modify")
 		manifest = getInstalledManifest(pkgModify)
@@ -2446,7 +2492,7 @@ def rollback(error) {
 	installAction = null
 	completedActions = null
 	manifestForRollback = null
-	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.")
+	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.", runInBackground)
 }
 
 def installHPMManifest()
