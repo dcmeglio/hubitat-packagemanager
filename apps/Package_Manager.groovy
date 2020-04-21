@@ -181,8 +181,12 @@ def prefSettings(params) {
 				section ("Logging") {
 					input "debugOutput", "bool", title: "Enable debug logging", defaultValue: true
 				}
-				section ("Automatic Updates") {
-					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true				
+				section ("Package Updates") {
+					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true		
+
+					input "notifyUpdatesAvailable", "bool", title: "Notify me when updates are available", submitOnChange: true
+					if (notifyUpdatesAvailable)
+						input "notifyDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
 				}
 				def reposToShow = [:]
 				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
@@ -1042,6 +1046,7 @@ def prefPkgUpdate() {
 	}
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Update chosen"
+		state.updatesNotified = false
 		updateDetails = [:]
 		optionalItemsToShow = [:]
 		atomicState.backgroundActionInProgress = true
@@ -1708,8 +1713,13 @@ def checkForUpdates() {
 	}
 	if (!updates)
 		app.updateLabel("Hubitat Package Manager")
-	else
+	else {
 		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+		if (notifyUpdatesAvailable && !state.updatesNotified) {
+			state.updatesNotified = true
+			notifyDevices*.deviceNotification("Hubitat Package updates are available")
+		}
+	}
 
 }
 
