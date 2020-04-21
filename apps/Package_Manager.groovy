@@ -187,6 +187,22 @@ def prefSettings(params) {
 					input "notifyUpdatesAvailable", "bool", title: "Notify me when updates are available", submitOnChange: true
 					if (notifyUpdatesAvailable)
 						input "notifyDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
+						
+					input "autoUpdates", "bool", title: "Install updates automatically", submitOnChange: true
+					if (autoUpdates) {
+						input "autoUpdateAll", "bool", title: "Automatically install all available updates", submitOnChange: true
+						if (!autoUpdateAll) {
+							def listOfPackages = getInstalledPackages(false)
+							input "appsToAutoUpdate", "enum", title: "Which packages should be automatically updated?", required: true, multiple: true, options:listOfPackages
+						}
+						
+						input "notifyOnSuccess", "bool", title: "Notify me if automatic updates are successful", submitOnChange: true
+						if (notifyOnSuccess)
+							input "notifyUpdateSuccessDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
+						input "notifyOnFailure", "bool", title: "Notify me if automatic updates are unsuccessful", submitOnChange: true
+						if (notifyOnFailure)
+							input "notifyUpdateFailureDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
+					}
 				}
 				def reposToShow = [:]
 				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
