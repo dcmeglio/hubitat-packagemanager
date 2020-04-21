@@ -2,9 +2,11 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "1.0.0",
-	"dateReleased": "2020-04-13",
-	"releaseNotes": "Fixed various bugs.",
+	"version": "1.1.0",
+	"dateReleased": "2020-04-21",
+	"releaseNotes": "Fixed various bugs. Updates now allow you to add new optional addons. Added documentation and community links to the View Apps page.",
+	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
+	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
 		{
 			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",

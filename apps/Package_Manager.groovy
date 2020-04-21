@@ -62,8 +62,9 @@ import groovy.transform.Field
 @Field static String errorMessage = ""
 @Field static boolean errorOccurred = false
 @Field static groovy.json.internal.LazyMap packagesWithUpdates = [:]
-@Field static groovy.json.internal.LazyMap releaseNotesToDisplay = [:]
-@Field static groovy.json.internal.LazyMap specificPackageItemsWithUpdates = [:]
+@Field static groovy.json.internal.LazyMap optionalItemsToShow = [:]
+@Field static groovy.json.internal.LazyMap updateDetails = [:]
+
 
 @Field static List appsToInstallForModify = []
 @Field static List appsToUninstallForModify = []
@@ -126,8 +127,8 @@ def prefOptions() {
 		listOfRepositories.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
-	return dynamicPage(name: "prefOptions", title: "Package Options", install: true, uninstall: false) {
-
+	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
+        displayHeader()
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
@@ -138,10 +139,7 @@ def prefOptions() {
 			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
 			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings.")
 		}
-		section {
-			paragraph "<hr>"
-			paragraph "<center>Consider donating. This app took a lot of work to make, if you find it valuable, I'd certainly appreciate a <a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'>donation</a></center>"
-		}
+		displayFooter()
 	}
 }
 
@@ -158,8 +156,10 @@ def prefSettings(params) {
 		def showInstall = app.getInstallationState() == "INCOMPLETE"
 		if (showInstall)
 			state.firstRun = true
-		return dynamicPage(name: "prefSettings", title: "Hubitat Connection Configuration", nextPage: "prefOptions", install: showInstall, uninstall: false) {
+		return dynamicPage(name: "prefSettings", title: "", nextPage: "prefOptions", install: showInstall, uninstall: false) {
+            displayHeader()
 			section ("Hub Security") {
+                paragraph "<b>Hubitat Connection Configuration</b>"
 				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
 				input "hpmSecurity", "bool", title: "Hub Security Enabled", submitOnChange: true
 				if (hpmSecurity)
@@ -195,8 +195,10 @@ def prefPkgInstall() {
 		return prefOptions()
 	logDebug "prefPkgInstall"
 	
-	return dynamicPage(name: "prefPkgInstall", title: "Install a Package", install: true, uninstall: false) {
+	return dynamicPage(name: "prefPkgInstall", title: "", install: true, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Install a Package</b>"
 			paragraph "How would you like to install this package?"
 			href(name: "prefPkgInstallRepository", title: "From a Repository", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository.")
 			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package. This is an advanced feature, only use it if you know how to find a package's manifest manually.")
@@ -215,8 +217,10 @@ def prefPkgInstallUrl() {
 	logDebug "prefPkgInstallUrl"
 	installMode = "url"
 
-	return dynamicPage(name: "prefPkgInstallUrl", title: "Install a Package from URL", nextPage: "prefInstallChoices", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgInstallUrl", title: "", nextPage: "prefInstallChoices", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Install a Package from URL</b>"
 			input "pkgInstall", "text", title: "Enter the URL of a package you wish to install (this should be a path to a <code>packageManifest.json</code> file).", required: true
 		}
 		section {
@@ -236,8 +240,9 @@ def prefPkgInstallRepository() {
 		runInMillis(1,performRepositoryRefresh)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefPkgInstallRepository", title: "Install a Package", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefPkgInstallRepository", title: "", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
 			section {
+                paragraph "<b>Install a Package</b>"
 				paragraph "Refreshing repositories... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
@@ -258,8 +263,11 @@ def prefInstallChoices() {
 	errorOccurred = null
 	errorTitle = null
 	errorMessage = null
-    return dynamicPage(name: "prefInstallChoices", title: "Install a Package from a Repository", nextPage: "prefInstallVerify", install: false, uninstall: false) {
+	
+    return dynamicPage(name: "prefInstallChoices", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Install a Package from a Repository</b>"
 			if (installMode == "repository")
 			{
 				input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
@@ -273,9 +281,9 @@ def prefInstallChoices() {
 						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
 							continue
 						if (pkg.category == pkgCategory) {
-										if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
-										if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
-								 }
+							if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
+							if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
+						}
 					}
 					def sortedMatchingPackages = matchingPackages.sort { a, b -> a.value <=> b.value }
 					input "pkgInstall", "enum", title: "Choose a package", options: sortedMatchingPackages, required: true, submitOnChange: true
@@ -368,8 +376,10 @@ def prefInstallVerify() {
 		return prefOptions()
 	logDebug "prefInstallVerify"
 	
-    return dynamicPage(name: "prefInstallVerify", title: "Ready to install", nextPage: "prefInstall", install: false, uninstall: false) {
+    return dynamicPage(name: "prefInstallVerify", title: "", nextPage: "prefInstall", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Ready to install</b>"
 			def manifest = getJSONFile(pkgInstall)
 			if (manifest.licenseFile) {
 				def license = downloadFile(manifest.licenseFile)
@@ -388,7 +398,6 @@ def prefInstallVerify() {
 }
 
 def prefInstall() {
-	log.debug atomicState.backgroundActionInProgress
 	if (state.mainMenu)
 		return prefOptions()
 	if (errorOccurred == true) {
@@ -401,8 +410,10 @@ def prefInstall() {
 		runInMillis(1,performInstallation)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefInstall", title: "Installing", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefInstall", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
 			section {
+                paragraph "<b>Installing</b>"
 				paragraph "Your installation is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
@@ -531,8 +542,10 @@ def prefPkgModify() {
 		return prefOptions()
 	logDebug "prefPkgModify"
 	def pkgsToList = getInstalledPackages(true)
-	return dynamicPage(name: "prefPkgModify", title: "Modify a Package", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgModify", title: "", nextPage: "prefPkgModifyChoices", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Modify a Package</b>"
 			paragraph "Only packages that have optional components are shown below."
 			input "pkgModify", "enum", title: "Choose the package to modify", options: pkgsToList, required: true
 		}
@@ -566,8 +579,10 @@ def prefPkgModifyChoices() {
 			}
 		}
 		
-		return dynamicPage(name: "prefPkgModifyChoices", title: "Modify a Package", nextPage: "prefVerifyPackageChanges", install: false, uninstall: false) {
+		return dynamicPage(name: "prefPkgModifyChoices", title: "", nextPage: "prefVerifyPackageChanges", install: false, uninstall: false) {
+            displayHeader()
 			section {
+                paragraph "<b>Modify a Package</b>"
 				paragraph "Items below that are checked are currently installed. Those that are not checked are currently <b>not</b> installed."
 				if (optionalApps.size() > 0)
 					input "appsToModify", "enum", title: "Select the apps to install/uninstall", options: optionalApps, hideWhenEmpty: true, multiple: true, defaultValue: installedOptionalApps
@@ -581,8 +596,9 @@ def prefPkgModifyChoices() {
 		}
 	}
 	else {
-		return dynamicPage(name: "prefPkgModifyChoices", title: "Nothing to modify", install: true, uninstall: false) {
+		return dynamicPage(name: "prefPkgModifyChoices", title: "", install: true, uninstall: false) {
 			section {
+                paragraph "<b>Nothing to modify</b>"
 				paragraph "This package does not have any optional components that you can modify."
 			}
 			section {
@@ -646,8 +662,10 @@ def prefVerifyPackageChanges() {
 	driversToUninstallStr += "</ul>"
 
 	if (hasChanges) {
-		return dynamicPage(name: "prefVerifyPackageChanges", title: "Modify a Package", nextPage: "prefMakePackageChanges", install: false, uninstall: false) {
+		return dynamicPage(name: "prefVerifyPackageChanges", title: "", nextPage: "prefMakePackageChanges", install: false, uninstall: false) {
+            displayHeader()
 			section {
+                paragraph "<b>Modify a Package</b>"
 				paragraph "The following changes will be made. Click next when you are ready. This may take some time."
 				if (appsToUninstallStr != "<ul></ul>")
 					paragraph "The following apps will be uninstalled: ${appsToUninstallStr}"
@@ -668,8 +686,10 @@ def prefVerifyPackageChanges() {
 		}
 	}
 	else {
-		return dynamicPage(name: "prefVerifyPackageChanges", title: "Nothing to modify", install: true, uninstall: false) {
+		return dynamicPage(name: "prefVerifyPackageChanges", title: "", install: true, uninstall: false) {
+            displayHeader()
 			section {
+                paragraph "<b>Nothing to modify</b>"
 				paragraph "You did not make any changes."
 			}
 			section {
@@ -692,8 +712,10 @@ def prefMakePackageChanges() {
 		runInMillis(1,performModify)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefMakePackageChanges", title: "Modifying Package", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefMakePackageChanges", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
 			section {
+                paragraph "<b>Modifying Package</b>"
 				paragraph "Your changes are currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
@@ -791,8 +813,10 @@ def prefPkgUninstall() {
 	logDebug "prefPkgUninstall"
 	def pkgsToList = getInstalledPackages(false)
 
-	return dynamicPage(name: "prefPkgUninstall", title: "Uninstall a Package", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgUninstall", title: "", nextPage: "prefPkgUninstallConfirm", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Uninstall a Package</b>"
 			input "pkgUninstall", "enum", title: "Choose the package to uninstall", options: pkgsToList, required: true
 		}
 		section {
@@ -806,8 +830,10 @@ def prefPkgUninstallConfirm() {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefPkgUninstallConfirm"
-	return dynamicPage(name: "prefPkgUninstallConfirm", title: "Uninstall a Package", nextPage: "prefUninstall", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgUninstallConfirm", title: "", nextPage: "prefUninstall", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Uninstall a Package</b>"
 			paragraph "The following apps and drivers will be removed:"
 			
 			def str = "<ul>"
@@ -844,8 +870,10 @@ def prefUninstall() {
 		runInMillis(1,performUninstall)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefUninstall", title: "Uninstall in progress", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefUninstall", title: "", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
 			section {
+                paragraph "<b>Uninstall in progress</b>"
 				paragraph "Your uninstall is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
@@ -893,11 +921,20 @@ def performUninstall() {
 	atomicState.backgroundActionInProgress = false
 }	
 
+def addUpdateDetails(pkgId, pkgName, releaseNotes, updateType, item) {
+	if (updateDetails[pkgId] == null)
+		updateDetails[pkgId] = [name: null, releaseNotes: null, items: []]
+	if (pkgName != null)
+		updateDetails[pkgId].name = pkgName
+	if (releaseNotes != null)
+		updateDetails[pkgId].releaseNotes = releaseNotes
+	updateDetails[pkgId].items << [type: updateType,  id: item?.id, name: item?.name]
+	
+	logDebug "Updates found ${updateType} for ${pkgId} -> ${item?.name}"
+}
 // Update packages pathway
 def performUpdateCheck() {
 	packagesWithUpdates = [:]
-	releaseNotesToDisplay = [:]
-	specificPackageItemsWithUpdates = [:]
 
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
@@ -910,45 +947,65 @@ def performUpdateCheck() {
 
 		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
 			packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
-			releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 			logDebug "Updates found for package ${pkg.key}"
+			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
 		} 
 		else {
 			def appOrDriverNeedsUpdate = false
 			for (app in manifest.apps) {
                 try {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app.version != null && installedApp.version != null) {
+				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
 						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
-							releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 						}
 						appOrDriverNeedsUpdate = true
-						if (specificPackageItemsWithUpdates[pkg.key] == null)
-							specificPackageItemsWithUpdates[pkg.key] = []
-						specificPackageItemsWithUpdates[pkg.key] << app.id
-						logDebug "Updates found for app ${app.location} -> ${pkg.key}"
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
 					}
+				}
+				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+					}
+					appOrDriverNeedsUpdate = true
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
+				}
+				else if (!installedApp && !app.required) {
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+					}
+					appOrDriverNeedsUpdate = true
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
 				}
                 }
                 catch (any) { log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer. "}
 			}
 			for (driver in manifest.drivers) {
-                try {
-                def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver.version != null && installedDriver.version != null) {
+        try {
+				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
+				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
 						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
-							releaseNotesToDisplay[pkg.key] = manifest.releaseNotes
 						}
 						appOrDriverNeedsUpdate = true
-						if (specificPackageItemsWithUpdates[pkg.key] == null)
-							specificPackageItemsWithUpdates[pkg.key] = []
-						specificPackageItemsWithUpdates[pkg.key] << driver.id
-						logDebug "Updates found for driver ${driver.location} -> ${pkg.key}"
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
 					}
+				}
+				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+					}
+					appOrDriverNeedsUpdate = true
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
+				}
+				else if (!installedDriver && !driver.required) {
+					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+					}
+					appOrDriverNeedsUpdate = true
 				}
                 }
                 catch (any) {log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer."}
@@ -967,24 +1024,45 @@ def prefPkgUpdate() {
 	}
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Update chosen"
+		updateDetails = [:]
+		optionalItemsToShow = [:]
 		atomicState.backgroundActionInProgress = true
 		runInMillis(1,performUpdateCheck)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefPkgUpdate", title: "Checking for updates", nextPage: "prefPkgUpdate", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgUpdate", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
 			section {
+                paragraph "<b>Checking for updates</b>"
 				paragraph "Checking for updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
 		}
 	}
-	else {
+	else if (atomicState.backgroundActionInProgress == false) {
 		if (packagesWithUpdates.size() > 0) {
 			logDebug "Updates available"
-			return dynamicPage(name: "prefPkgUpdate", title: "Updates Available", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
+			return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgVerifyUpdates", install: false, uninstall: false) {
+                displayHeader()
 				section {
+                    paragraph "<b>Updates Available</b>"
 					paragraph "Updates are available."
-					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates
+					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates, submitOnChange: true
+				}
+				if (updateDetails?.size() > 0 && pkgsToUpdate != null) {
+					for (pkgToUpdate in pkgsToUpdate) {
+						def updateDetailsForPkg = updateDetails[pkgToUpdate]
+						for (details in updateDetailsForPkg.items) {
+							if (details.type == "optapp" || details.type == "optdriver") {
+								optionalItemsToShow["${pkgToUpdate}~${details.id}"] = "${details.name} (${updateDetailsForPkg.name})"
+							}
+						}
+					}
+					if (optionalItemsToShow?.size() > 0) {
+						section {
+							input "pkgsToAddOpt", "enum", title: "One or more packages has new optional components. Choose which ones to add", multiple: true, options:optionalItemsToShow
+						}
+					}
 				}
 				section {
 					paragraph "<hr>"
@@ -994,8 +1072,10 @@ def prefPkgUpdate() {
 		}
 		else {
 			logDebug "No updates available"
-			return dynamicPage(name: "prefPkgUpdate", title: "No Updates Available", install: true, uninstall: false) {
+			return dynamicPage(name: "prefPkgUpdate", title: "", install: true, uninstall: false) {
+                displayHeader()
 				section {
+                    paragraph "<b>No Updates Available</b>"
 					paragraph "All packages are up to date."
 				}
 				section {
@@ -1028,18 +1108,29 @@ def prefPkgVerifyUpdates() {
 	for (pkg in pkgsToUpdate) {
 		updatesToInstall += "<li>${state.manifests[pkg].packageName}"
 		
-		if (releaseNotesToDisplay[pkg]) {
+		if (updateDetails[pkg].releaseNotes != null) {
 			updatesToInstall += "<br>"
-			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${releaseNotesToDisplay[pkg]}</textarea>"
+			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${updateDetails[pkg].releaseNotes}</textarea>"
 		}
 		
 		updatesToInstall += "</li>"
-		
 	}
+	
 	updatesToInstall += "</ul>"
-	return dynamicPage(name: "prefPkgVerifyUpdates", title: "Install Updates?", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
+	def optStrToInstall = "<ul>"
+	for (optItem in pkgsToAddOpt) {
+		optStrToInstall += "<li>${optionalItemsToShow[optItem]}</li>"
+	}
+	optStrToInstall += "</ul>"
+	
+	return dynamicPage(name: "prefPkgVerifyUpdates", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false) {
+        displayHeader()
 		section {
-			paragraph "The following updates will be installed: ${updatesToInstall} Click Next to continue. This may take some time."
+            paragraph "<b>Install Updates?</b>"
+			paragraph "The following updates will be installed: ${updatesToInstall}"
+			if (optStrToInstall != "<ul></ul>")
+				paragraph "The following optional items will be added: ${optStrToInstall}"
+			paragraph "Click Next to continue. This may take some time."
 		}
 		section {
             paragraph "<hr>"
@@ -1050,7 +1141,7 @@ def prefPkgVerifyUpdates() {
 def prefPkgUpdatesComplete() {
 	if (state.mainMenu)
 		return prefOptions()
-	releaseNotesToDisplay = null
+	
 	if (errorOccurred == true) {
 		return buildErrorPage(errorTitle, errorMessage)
 	}
@@ -1060,8 +1151,10 @@ def prefPkgUpdatesComplete() {
 		runInMillis(1,performUpdates)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefPkgUpdatesComplete", title: "Installing updates", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefPkgUpdatesComplete", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
 			section {
+                paragraph "<b>Installing Updates</b>"
 				paragraph "Installing updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
@@ -1073,10 +1166,24 @@ def prefPkgUpdatesComplete() {
 }
 
 def shouldUpgrade(pkg, id) {
-	
-	if (specificPackageItemsWithUpdates[pkg] == null)
-		return true
-	return specificPackageItemsWithUpdates[pkg].contains(id)
+	def pkgUpdateDetails = updateDetails[pkg]
+
+	for (updateItem in pkgUpdateDetails.items) {
+		if (updateItem.type == "package")
+			return true
+		else if ((updateItem.type == "specificapp" || updateItem.type == "specificdriver") && updateItem.id == id)
+			return true
+	}
+	return false
+}
+
+def optionalItemsOnly(pkg) {
+	def pkgUpdateDetails = updateDetails[pkg]
+	for (updateItem in pkgUpdateDetails) {
+		if (updateItem.type == "package" || updateItem.type == "specificapp" || updateItem.type == "specificdriver" || updateItem.type == "reqapp" || updateItem.type == "reqdriver")
+			return false
+	}
+	return true
 }
 
 def performUpdates() {
@@ -1093,7 +1200,6 @@ def performUpdates() {
 		def installedManifest = state.manifests[pkg]
 		
 		downloadedManifests[pkg] = manifest
-
 		if (manifest) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
@@ -1106,13 +1212,28 @@ def performUpdates() {
 						appFiles[app.location] = fileContents	
 					}
 				}
-				else if (app.required) {
+				else if (app.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
 					def fileContents = downloadFile(app.location)
 					if (fileContents == null) {
 						return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
 					}
 					appFiles[app.location] = fileContents
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split('~')
+						if (splitParts[0] == pkg) {
+							if (splitParts[1] == app.id) {
+								setBackgroundStatusMessage("Downloading optional component ${app.name}")
+								def fileContents = downloadFile(app.location)
+								if (fileContents == null) {
+									return triggerError("Error downloading file", "An error occurred downloading ${app.location}")
+								}
+								appFiles[app.location] = fileContents
+							}
+						}
+					}
 				}
 			}
 			for (driver in manifest.drivers) {
@@ -1126,13 +1247,26 @@ def performUpdates() {
 						driverFiles[driver.location] = fileContents
 					}
 				}
-				else if (driver.required) {
+				else if (driver.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
 					def fileContents = downloadFile(driver.location)
 					if (fileContents == null) {
 						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
 					}
 					driverFiles[driver.location] = fileContents
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split(':')
+						if (splitParts[0] == pkg && splitParts[1] == driver.id) {
+							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
+							def fileContents = downloadFile(driver.location)
+							if (fileContents == null) {
+								return triggerError("Error downloading file", "An error occurred downloading ${driver.location}")
+							}
+							driverFiles[driver.location] = fileContents
+						}
+					}
 				}
 			}
 		}
@@ -1164,7 +1298,7 @@ def performUpdates() {
 							return rollback("Failed to upgrade app ${app.location}")
 					}
 				}
-				else if (app.required) {
+				else if (app.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Installing ${app.name}")
 					def id = installApp(appFiles[app.location])
 					if (id != null) {
@@ -1174,6 +1308,24 @@ def performUpdates() {
 					}
 					else
 						return rollback("Failed to install app ${app.location}")
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split('~')
+						if (splitParts[0] == pkg) {
+							if (splitParts[1] == app.id) {
+								setBackgroundStatusMessage("Installing ${app.name}")
+								def id = installApp(appFiles[app.location])
+								if (id != null) {
+									app.heID = id
+									if (app.oauth)
+										enableOAuth(app.heID)
+								}
+								else
+									return rollback("Failed to install app ${app.location}")
+							}
+						}
+					}
 				}
 			}
 			
@@ -1190,7 +1342,7 @@ def performUpdates() {
 							return rollback("Failed to upgrade driver ${driver.location}")
 					}
 				}
-				else if (driver.required) {
+				else if (driver.required && !optionalItemsOnly(pkg)) {
 					setBackgroundStatusMessage("Installing ${driver.name}")
 					def id = installDriver(driverFiles[driver.location])
 					if (id != null) {
@@ -1198,6 +1350,22 @@ def performUpdates() {
 					}
 					else
 						return rollback("Failed to install driver ${driver.location}")
+				}
+				else {
+					for (optItem in pkgsToAddOpt) {
+						def splitParts = optItem.split('~')
+						if (splitParts[0] == pkg) {
+							if (splitParts[1] == driver.id) {
+								setBackgroundStatusMessage("Installing ${driver.name}")
+								def id = installApp(appFiles[driver.location])
+								if (id != null) {
+									driver.heID = id
+								}
+								else
+									return rollback("Failed to install driver ${driver.location}")
+							}
+						}
+					}
 				}
 			}
 			if (state.manifests[pkg] != null)
@@ -1216,8 +1384,10 @@ def prefPkgMatchUp() {
 		return prefOptions()
 	logDebug "prefPkgMatchUp"
 
-	return dynamicPage(name: "prefPkgMatchUp", title: "Match Installed Apps and Drivers", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
+	return dynamicPage(name: "prefPkgMatchUp", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Match Installed Apps and Drivers</b>"
 			paragraph "This will go through all of the apps and drivers you currently have installed in Hubitat and attempt to find matching packages. This process can take minutes or even hours depending on how many apps and drivers you have installed. Click Next to continue."
 		}
 		if (!state.firstRun) {
@@ -1241,8 +1411,10 @@ def prefPkgMatchUpVerify() {
 		runInMillis(1,performPackageMatchup)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-		return dynamicPage(name: "prefPkgMatchUpVerify", title: "Matching Installed Apps and Drivers", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
 			section {
+                paragraph "<b>Matching Installed Apps and Drivers</b>"
 				paragraph "Matching packages... Please wait..."
 				paragraph getBackgroundStatusMessage()
 			}
@@ -1258,8 +1430,10 @@ def prefPkgMatchUpVerify() {
 				itemsForList << ["${pkg.location}":"${pkg.name} - matched (${appAndDriverMatches})"]
 			}
 			itemsForList = itemsForList.sort { it-> it.value}
-			return dynamicPage(name: "prefPkgMatchUpVerify", title: "Found Matching Packages", nextPage: "prefPkgMatchUpComplete", install: false, uninstall: false) {
+			return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpComplete", install: false, uninstall: false) {
+                displayHeader()
 				section {
+                    paragraph "<b>Found Matching Packages</b>"
 					paragraph "The following matches were found. There is a possibility that some may have matched incorrectly. Only check off the items that you believe are correct."
 					input "pkgMatches", "enum", title: "Choose packages to match", required: true, multiple: true, options: itemsForList
 					input "pkgUpToDate", "bool", title: "Assume that packages are up-to-date? If set, the currently installed version will be marked as up-to-date. If not set, next time you run an update check this package will be updated."
@@ -1391,8 +1565,10 @@ def prefPkgMatchUpComplete() {
 		}
 	}
 	state.firstRun = false
-	return dynamicPage(name: "prefPkgMatchUpComplete", title: "Match Up Complete", install: true, uninstall: false) {
+	return dynamicPage(name: "prefPkgMatchUpComplete", title: "", install: true, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>Match Up Complete</b>"
 			if (pkgUpToDate)
 				paragraph "The selected packages have been marked as installed. Click Done to continue."
 			else
@@ -1413,41 +1589,46 @@ def prefPkgView() {
 	def appsManaged = []
 	def driversManaged = []
 	
-	for (pkg in state.manifests) {
-		appsManaged.addAll(pkg.value.apps.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
-		driversManaged.addAll(pkg.value.drivers.findAll { it -> it.heID != null}.collect{it -> "${it.name} (${pkg.value.packageName})"})
+	def str = "<ul>"
+	
+	def sortedPkgs = state.manifests.sort{ it-> it.value.packageName}
+	for (pkg in sortedPkgs) {
+		str += "<li><b>${pkg.value.packageName}</b>"
+		if (pkg.value.documentationLink != null)
+			str += " <a href='${pkg.value.documentationLink}' target='_blank'>Documentation</a>"
+		if (pkg.value.communityLink != null)
+			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a>"
+		str += "<ul>"
+		for (app in pkg.value.apps?.sort { it -> it.name}) {
+			str += "<li>${app.name} (app)</li>"
+		}
+		for (driver in pkg.value.drivers?.sort { it -> it.name}) {
+			str += "<li>${driver.name} (driver)</li>"
+		}
+		str += "</ul></li>"
 	}
-	appsManaged = appsManaged.sort()
-	driversManaged = driversManaged.sort()
-	
-	def appsStr = "<ul>"
-	def driversStr = "<ul>"
-	
-	appsManaged.each { it -> appsStr += "<li>${it}</li>" }
-	driversManaged.each { it -> driversStr += "<li>${it}</li>" }
-	
-	appsStr += "</ul>"
-	driversStr += "</ul>"
+	str += "</ul>"
 
-	return dynamicPage(name: "prefPkgView", title: "View Apps and Drivers", install: true, uninstall: false) {
+
+	return dynamicPage(name: "prefPkgView", title: "", install: true, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>View Apps and Drivers</b>"
 			paragraph "The apps and drivers listed below are managed by the Hubitat Package Manager."
-			paragraph "<b>Managed Apps</b>"
-			paragraph appsStr
-			paragraph "<b>Managed Drivers</b>"
-			paragraph driversStr
+			paragraph str
 		}
 		section {
 			paragraph "<hr>"
 			input "btnMainMenu", "button", title: "Main Menu", width: 3
 		}
-		
 	}
 }
 
 def buildErrorPage(title, message) {
-	return dynamicPage(name: "prefError", title: title, install: true, uninstall: false) {
+	return dynamicPage(name: "prefError", title: "", install: true, uninstall: false) {
+        displayHeader()
 		section {
+            paragraph "<b>${title}</b>"
 			paragraph message
 		}
 		section {
@@ -1469,22 +1650,38 @@ def checkForUpdates() {
 		else {
 			for (app in manifest.apps) {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app.version != null && installedApp.version != null) {
+				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
 						updates = true
 						break
 					}
+				}
+				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
+					updates = true
+					break
+				}
+				else if (!installedApp && !app.required) {
+					updates = true
+					break
 				}
 			}
 			if (updates)
 				break
 			for (driver in manifest.drivers) {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver.version != null && installedDriver.version != null) {
+				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
 						updates = true
 						break
 					}
+				}
+				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
+					updates = true
+					break
+				}
+				else if (!installedDriver && !driver.required) {
+					updates = true
+					break
 				}
 			}
 			if (updates)
@@ -1500,7 +1697,6 @@ def checkForUpdates() {
 
 def clearStateSettings(clearProgress) {
 	installMode = null
-	log.debug "called ${clearProgress}"
 	app.removeSetting("pkgInstall")
 	app.removeSetting("appsToInstall")
 	app.removeSetting("driversToInstall")
@@ -1509,12 +1705,14 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("driversToModify")
 	app.removeSetting("pkgUninstall")
 	app.removeSetting("pkgsToUpdate")
+	app.removeSetting("pkgsToAddOpt")
 	app.removeSetting("pkgCategory")
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
 	packagesWithUpdates = [:]
-	specificPackageItemsWithUpdates = [:]
+	updateDetails = [:]
 	packagesMatchingInstalledEntries = []
+	optionalItemsToShow = [:]
 	state.customRepo = false
 	app.removeSetting("customRepo")
 	if (clearProgress) {
@@ -1581,7 +1779,7 @@ def isAppInstalled(manifest, id) {
 def isDriverInstalled(manifest, id) {
 	for (driver in manifest.drivers) {
 		if (driver.id == id) {
-			if (driver.heID != null)
+			if (driver.heID != null) 
 				return true
 			else
 				return false
@@ -1746,6 +1944,8 @@ def verifyHEVersion(versionStr) {
 def newVersionAvailable(versionStr, installedVersionStr) {
 	if (versionStr == null)
 		return false
+	versionStr = versionStr.replaceAll("[^\\d.]", "")
+    installedVersionStr = installedVersionStr?.replaceAll("[^\\d.]", "")
 	def installedVersionParts = installedVersionStr.split(/\./)
 	def newVersionParts = versionStr.split(/\./)
 
@@ -2148,8 +2348,10 @@ def complete(title, message) {
 	manifestForRollback = null
 	clearStateSettings(false)
 	
-	return dynamicPage(name: "prefComplete", title: title, install: false, uninstall: false, nextPage: "prefOptions") {
+	return dynamicPage(name: "prefComplete", title: "", install: false, uninstall: false, nextPage: "prefOptions") {
+        displayHeader()
 		section {
+            paragraph "<b>${title}</b>"
 			paragraph message
 		}
 	}
@@ -2260,7 +2462,7 @@ def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 	}
 	
 	for (driver in srcInstalledDrivers) {
-		def destDriver = destManifest.drivers?.find { it -> it.id == app.id }
+		def destDriver = destManifest.drivers?.find { it -> it.id == driver.id }
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
 	}
@@ -2286,6 +2488,52 @@ def logDebug(msg) {
 	//}
 }
 
+def getDriverList() {
+    def params = [
+    	uri: "http://127.0.0.1:8080/device/drivers",
+	    headers: [
+			Cookie: state.cookie
+		]
+      ]
+    def result = []
+    try {
+        httpGet(params) { resp ->
+			for (driver in resp.data.drivers) {
+				if (driver.type == "usr")
+					result += [id:driver.id.toString(),title:driver.name,namespace:driver.namespace]
+			}
+        }
+    } catch (e) {
+        log.error "Error retrieving installed drivers: ${e}"
+    }
+	return result
+}
+
+def getImage(type) {					// Modified from @Stephack Code
+    def loc = "<img src=https://raw.githubusercontent.com/bptworld/Hubitat/master/resources/images/"
+    if(type == "Blank") return "${loc}blank.png height=40 width=5}>"
+    //if(type == "logo") return "${loc}logo.png height=60>"
+}
+
+def getFormat(type, myText=""){			// Modified from @Stephack Code   
+    if(type == "line") return "<hr style='background-color:#1A77C9; height: 1px; border: 0;'>"
+    if(type == "title") return "<h2 style='color:#1A77C9;font-weight: bold'>${myText}</h2>"
+}
+
+def displayHeader() {
+    section (getFormat("title", "${getImage("Blank")}" + " Hubitat Package Manager")) {
+		paragraph getFormat("line")
+	}
+}
+
+def displayFooter(){
+	section() {
+		paragraph getFormat("line")
+		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
+	}       
+}
+
+
 // Thanks to gavincampbell for the code below!
 def getAppList() {
     def params = [
@@ -2310,32 +2558,6 @@ def getAppList() {
         }
     } catch (e) {
 		log.error "Error retrieving installed apps: ${e}"
-    }
-	return result
-}
-
-def getDriverList() {
-    def params = [
-    	uri: "http://127.0.0.1:8080/driver/list",
-        textParser: true,
-	    headers: [
-			Cookie: state.cookie
-		]
-      ]
-    def result = []
-    try {
-        httpGet(params) { resp ->
-            def matcherText = resp.data.text.replace("\n","").replace("\r","")
-            def matcher = matcherText.findAll(/(<tr class="driver-row" data-app-id="[^<>]+">.*?<\/tr>)/).each {
-                def allFields = it.findAll(/(<td .*?<\/td>)/) // { match,f -> return f } 
-                def title = it.find(/title="([^"]+)/) { match,t -> return t }
-                def id = it.find(/data-app-id="([^"]+)"/) { match,i -> return i.trim() }
-                def namespace = allFields[1].find(/>([^"]+)</) { match,ns -> return ns.trim() }
-                result += [id:id,title:title,namespace:namespace]
-			}
-        }
-    } catch (e) {
-        log.error "Error retrieving installed drivers: ${e}"
     }
 	return result
 }
