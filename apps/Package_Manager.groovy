@@ -54,7 +54,7 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap completedActions = [:]
 @Field static groovy.json.internal.LazyMap manifestForRollback = null
 @Field static groovy.json.internal.LazyMap downloadQueue = [:]
-@Field static Integer maxDownloadQueueSize = 5
+@Field static Integer maxDownloadQueueSize = 10
 
 
 @Field static String installAction = ""
@@ -1459,8 +1459,7 @@ def prefPkgMatchUpVerify() {
 		runInMillis(1,performPackageMatchup)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-	log.debug "called"
-		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 1) {
+		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
                 paragraph "<b>Matching Installed Apps and Drivers</b>"
@@ -1503,16 +1502,17 @@ def prefPkgMatchUpVerify() {
 }
 
 def performPackageMatchUpPackageLoadCallback(resp, data) {
-// todo need to combine these all, right now it's just 1
 	def packagesToMatchAgainst = []
 	for (key in resp.keySet()) {
-		def pkg = data.packages.find { it -> it.location == key}
+		def dataForItem = data.data[key]
+		def pkg = dataForItem.packageList.find { it -> it.location == key}
 		def manifestContents = resp[key].result
 		if (manifestContents == null)
 			log.warn "Found a bad manifest ${pkg.location}"
 		else {
+			
 			def pkgDetails = [
-				repository: data.repoName,
+				repository: dataForItem.repoName,
 				name: pkg.name,
 				location: pkg.location,
 				manifest: manifestContents
@@ -1547,11 +1547,12 @@ def performPackageMatchUpPackageLoadCallback(resp, data) {
 }
 
 def performPackageMatchUpPackageLoadStatusCallback(resp, data) {
-	def repoName = getRepoName(data)
-	setBackgroundStatusMessage("Retrieving packages from ${repoName}")
+
 }
 
 def performPackageMatchUpCallback(resp, data) {
+	def uriList = []
+	def itemData = [:]
 	for (key in resp.keySet()) {
 		def repoName = getRepoName(key)
 		def fileContents = resp[key].result
@@ -1560,12 +1561,13 @@ def performPackageMatchUpCallback(resp, data) {
 			setBackgroundStatusMessage("Failed to refresh ${repoName}")
 			continue
 		}
-		def uriList = []
+		
 		for (pkg in fileContents.packages) {
 			uriList << pkg.location
+			itemData[pkg.location] = [repoName: repoName, packageList: fileContents.packages]
 		}
-		getMultipleJSONFiles(uriList, performPackageMatchUpPackageLoadCallback, performPackageMatchUpPackageLoadStatusCallback, [packages: fileContents.packages, repoName: repoName])
 	}
+	getMultipleJSONFiles(uriList, performPackageMatchUpPackageLoadCallback, performPackageMatchUpPackageLoadStatusCallback, [data:itemData])
 }
 
 def performPackageMatchUpStatusCallback(resp, data) {
@@ -2032,7 +2034,7 @@ def getMultipleJSONFilesCallback(resp, data) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
 		downloadQueue[data.batchid].results[data.uri].complete = true
 		
-		"${data.statusCallback}"(data.uri, data.data)
+		"${data.statusCallback}"(data.uri, data.uri)
 		
 		def queuedItem = downloadQueue[data.batchid].results.find { k, v -> v.queued == true}
 		if (queuedItem != null) {
