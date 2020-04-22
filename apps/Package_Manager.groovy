@@ -2035,7 +2035,7 @@ def getMultipleJSONFilesCallback(resp, data) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
 		downloadQueue[data.batchid].results[data.uri].complete = true
 		
-		"${data.statusCallback}"(data.uri, data.uri)
+		"${data.statusCallback}"(data.uri, data.data)
 		
 		def queuedItem = downloadQueue[data.batchid].results.find { k, v -> v.queued == true}
 		if (queuedItem != null) {
