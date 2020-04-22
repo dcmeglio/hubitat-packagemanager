@@ -998,7 +998,6 @@ def performUpdateCheckCallback(resp, data) {
 		else {
 			def appOrDriverNeedsUpdate = false
 			for (app in manifest.apps) {
-			log.debug app
                 try {
 					def installedApp = getAppById(state.manifests[key], app.id)
 					if (app?.version != null && installedApp?.version != null) {
@@ -1074,8 +1073,9 @@ def prefPkgUpdate() {
 		state.updatesNotified = false
 		updateDetails = [:]
 		optionalItemsToShow = [:]
-		atomicState.backgroundActionInProgress = true
 		packagesWithUpdates = [:]
+		atomicState.backgroundActionInProgress = true
+		
 	
 		getMultipleJSONFiles(state.manifests.keySet(), performUpdateCheckCallback, performUpdateCheckStatusCallback)
 	}
@@ -1421,6 +1421,7 @@ def performUpdates(runInBackground) {
 			if (state.manifests[pkg] != null)
 				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
 			state.manifests[pkg] = manifest
+			
 			minimizeStoredManifests()
 		}
 		else {
