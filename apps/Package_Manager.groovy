@@ -2032,6 +2032,7 @@ def getJSONFile(uri) {
 	}	
 }
 
+<<<<<<< HEAD
 def getMultipleJSONFilesCallback(resp, data) {
 	synchronized (downloadQueue) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
@@ -2078,6 +2079,8 @@ def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null)
 	}
 }
 
+=======
+>>>>>>> Added async download helper methods
 
 def getJSONFileAsync(String uri, String callback, Map data = null) {
 	try
