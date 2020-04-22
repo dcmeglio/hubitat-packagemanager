@@ -1459,8 +1459,7 @@ def prefPkgMatchUpVerify() {
 		runInMillis(1,performPackageMatchup)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
-	log.debug "called"
-		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 1) {
+		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
                 paragraph "<b>Matching Installed Apps and Drivers</b>"
@@ -1503,7 +1502,6 @@ def prefPkgMatchUpVerify() {
 }
 
 def performPackageMatchUpPackageLoadCallback(resp, data) {
-// todo need to combine these all, right now it's just 1
 	def packagesToMatchAgainst = []
 	for (key in resp.keySet()) {
 		def dataForItem = data.data[key]
@@ -1548,11 +1546,12 @@ def performPackageMatchUpPackageLoadCallback(resp, data) {
 }
 
 def performPackageMatchUpPackageLoadStatusCallback(resp, data) {
-	def repoName = getRepoName(data)
-	setBackgroundStatusMessage("Retrieving packages from ${repoName}")
+
 }
 
 def performPackageMatchUpCallback(resp, data) {
+	def uriList = []
+	def itemData = [:]
 	for (key in resp.keySet()) {
 		def repoName = getRepoName(key)
 		def fileContents = resp[key].result
@@ -2035,7 +2034,7 @@ def getMultipleJSONFilesCallback(resp, data) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
 		downloadQueue[data.batchid].results[data.uri].complete = true
 		
-		"${data.statusCallback}"(data.uri, data.data)
+		"${data.statusCallback}"(data.uri, data.uri)
 		
 		def queuedItem = downloadQueue[data.batchid].results.find { k, v -> v.queued == true}
 		if (queuedItem != null) {
