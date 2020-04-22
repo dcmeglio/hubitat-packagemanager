@@ -1460,7 +1460,7 @@ def prefPkgMatchUpVerify() {
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 	log.debug "called"
-		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
+		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 1) {
             displayHeader()
 			section {
                 paragraph "<b>Matching Installed Apps and Drivers</b>"
@@ -1503,6 +1503,7 @@ def prefPkgMatchUpVerify() {
 }
 
 def performPackageMatchUpPackageLoadCallback(resp, data) {
+// todo need to combine these all, right now it's just 1
 	def packagesToMatchAgainst = []
 	for (key in resp.keySet()) {
 		def pkg = data.packages.find { it -> it.location == key}
@@ -1546,12 +1547,13 @@ def performPackageMatchUpPackageLoadCallback(resp, data) {
 }
 
 def performPackageMatchUpPackageLoadStatusCallback(resp, data) {
+	def repoName = getRepoName(data)
+	setBackgroundStatusMessage("Retrieving packages from ${repoName}")
 }
 
 def performPackageMatchUpCallback(resp, data) {
 	for (key in resp.keySet()) {
 		def repoName = getRepoName(key)
-		setBackgroundStatusMessage("Refreshing ${repoName}")
 		def fileContents = resp[key].result
 		if (!fileContents) {
 			log.warn "Error refreshing ${repoName}"
@@ -1567,6 +1569,8 @@ def performPackageMatchUpCallback(resp, data) {
 }
 
 def performPackageMatchUpStatusCallback(resp, data) {
+	def repoName = getRepoName(data)
+	setBackgroundStatusMessage("Refreshing repository listing ${repoName}")
 	
 }
 
@@ -2039,10 +2043,15 @@ def getMultipleJSONFilesCallback(resp, data) {
 def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null) {
 	def batchid = UUID.randomUUID().toString()
 	synchronized (downloadQueue) {
+		def itemsToRemove = []
 		for (batch in downloadQueue.keySet()) {
 			if (downloadQueue[batch].totalBatchSize == downloadQueue[batch].results.count { k, v -> v.complete == true}) {
-				downloadQueue.remove(batch)
+				itemsToRemove << batch
+				
 			}
+		}
+		for (removeItem in itemsToRemove) {
+			downloadQueue.remove(removeItem)
 		}
 		
 		downloadQueue[batchid] = [totalBatchSize: uriList.size(), results: [:]]
