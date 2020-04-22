@@ -270,7 +270,7 @@ def prefPkgInstallRepository() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "prefPkgInstallRepository"
 		atomicState.backgroundActionInProgress = true
-		runInMillis(1,performRepositoryRefresh)
+		getMultipleJSONFiles(installedRepositories, performRepositoryRefreshCallback,performRepositoryRefreshStatusCallback)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgInstallRepository", title: "", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
@@ -370,14 +370,19 @@ def getRepoName(location) {
 	return listOfRepositories.repositories.find { it -> it.location == location }?.name
 }
 
-def performRepositoryRefresh() {
+def performRepositoryRefreshStatusCallback(resp) {
+	def repoName = getRepoName(resp)
+	setBackgroundStatusMessage("Refreshing ${repoName}")
+}
+
+def performRepositoryRefreshCallback(resp) {
 	allPackages = []
 	categories = []
-
-	for (repo in installedRepositories) {
-		def repoName = getRepoName(repo)
-		setBackgroundStatusMessage("Refreshing ${repoName}")
-		def fileContents = getJSONFile(repo)
+	for (key in resp.keySet()) {
+		def fileContents = resp[key].result
+		
+		def repoName = getRepoName(key)
+		
 		if (!fileContents) {
 			log.warn "Error refreshing ${repoName}"
 			setBackgroundStatusMessage("Failed to refresh ${repoName}")
@@ -401,7 +406,6 @@ def performRepositoryRefresh() {
 	}
 	allPackages = allPackages.sort()
 	categories = categories.sort()
-	log.debug allPackages.size()
 	atomicState.backgroundActionInProgress = false
 }
 
@@ -2004,23 +2008,29 @@ def getJSONFile(uri) {
 
 def getMultipleJSONFilesCallback(resp, data) {
 	synchronized (downloadQueue) {
-		log.debug "${data.uri} is complete"
 		downloadQueue[data.batchid].results[data.uri].result = resp
 		downloadQueue[data.batchid].results[data.uri].complete = true
 		
+		"${data.statusCallback}"(data.uri)
 		if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize)
 			"${data.callback}"(downloadQueue[data.batchid].results)
 	}
 }
 
-def getMultipleJSONFiles(uriList, callback) {
+def getMultipleJSONFiles(uriList, completeCallback, statusCallback) {
 	def batchid = UUID.randomUUID().toString()
 	synchronized (downloadQueue) {
+		for (batch in downloadQueue.keySet()) {
+			if (downloadQueue[batch].totalBatchSize == downloadQueue[batch].results.count { k, v -> v.complete == true}) {
+				downloadQueue.remove(batch)
+			}
+		}
+		
 		downloadQueue[batchid] = [totalBatchSize: uriList.size(), results: [:]]
 		
 		for (uri in uriList) {
 			downloadQueue[batchid].results[uri] = [complete: false, result: null]
-			getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: callback])
+			getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: completeCallback, statusCallback: statusCallback])
 		}
 	}
 }
@@ -2498,10 +2508,12 @@ def getDriverVersion(id) {
 }
 
 def setBackgroundStatusMessage(msg) {
-	if (statusMessage == null)
-		statusMessage = ""
-	log.info msg
-	statusMessage += "${msg}<br>"
+	synchronized (statusMessage) {
+		if (statusMessage == null)
+			statusMessage = ""
+		log.info msg
+		statusMessage += "${msg}<br>"
+	}
 }
 
 def getBackgroundStatusMessage() {
