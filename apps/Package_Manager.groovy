@@ -1501,32 +1501,12 @@ def prefPkgMatchUpVerify() {
 	}	
 }
 
-def performPackageMatchup() {
-	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
-		
-	setBackgroundStatusMessage("Retrieving list of installed apps")
-	def allInstalledApps = getAppList()
-	setBackgroundStatusMessage("Retrieving list of installed drivers")
-	def allInstalledDrivers = getDriverList()
-	
-	// Filter out anything that already has an associated package
-	for (manifest in state.manifests) {
-		for (app in manifest.value.apps) {
-			if (app.heID != null)
-				allInstalledApps.removeIf {it -> it.id == app.heID}
-		}
-		for (driver in manifest.value.drivers) {
-			if (driver.heID != null)
-				allInstalledDrivers.removeIf {it -> it.id == driver.heID}
-		}
-	}
-	
+def performPatchMatchUpCallback(resp) {
 	def packagesToMatchAgainst = []
-	for (repo in installedRepositories) {
-		def repoName = getRepoName(repo)
+	for (key in resp.keySet()) {
+		def repoName = getRepoName(key)
 		setBackgroundStatusMessage("Refreshing ${repoName}")
-		def fileContents = getJSONFile(repo)
+		def fileContents = resp[key].result
 		if (!fileContents) {
 			log.warn "Error refreshing ${repoName}"
 			setBackgroundStatusMessage("Failed to refresh ${repoName}")
@@ -1547,7 +1527,6 @@ def performPackageMatchup() {
 			}
 		}
 	}
-	
 	packagesMatchingInstalledEntries = []
 	setBackgroundStatusMessage("Matching up packages")
 	for (pkg in packagesToMatchAgainst) {
@@ -1572,6 +1551,34 @@ def performPackageMatchup() {
 	}
 	
 	atomicState.backgroundActionInProgress = false
+}
+
+def performPatchMatchUpStatusCallback(resp) {
+	
+}
+
+def performPackageMatchup() {
+	if (!login())
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
+		
+	setBackgroundStatusMessage("Retrieving list of installed apps")
+	allInstalledApps = getAppList()
+	setBackgroundStatusMessage("Retrieving list of installed drivers")
+	allInstalledDrivers = getDriverList()
+	
+	// Filter out anything that already has an associated package
+	for (manifest in state.manifests) {
+		for (app in manifest.value.apps) {
+			if (app.heID != null)
+				allInstalledApps.removeIf {it -> it.id == app.heID}
+		}
+		for (driver in manifest.value.drivers) {
+			if (driver.heID != null)
+				allInstalledDrivers.removeIf {it -> it.id == driver.heID}
+		}
+	}
+	
+	getMultipleJSONFiles(installedRepositories, performPatchMatchUpCallback, performPatchMatchUpStatusCallback)
 }
 
 def prefPkgMatchUpComplete() {
