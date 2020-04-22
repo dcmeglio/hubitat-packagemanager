@@ -1179,7 +1179,7 @@ def shouldUpgrade(pkg, id) {
 
 def optionalItemsOnly(pkg) {
 	def pkgUpdateDetails = updateDetails[pkg]
-	for (updateItem in pkgUpdateDetails) {
+	for (updateItem in pkgUpdateDetails.items) {
 		if (updateItem.type == "package" || updateItem.type == "specificapp" || updateItem.type == "specificdriver" || updateItem.type == "reqapp" || updateItem.type == "reqdriver")
 			return false
 	}
