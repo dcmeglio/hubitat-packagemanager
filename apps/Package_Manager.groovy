@@ -1573,7 +1573,6 @@ def performPackageMatchUpCallback(resp, data) {
 def performPackageMatchUpStatusCallback(resp, data) {
 	def repoName = getRepoName(data)
 	setBackgroundStatusMessage("Refreshing repository listing ${repoName}")
-	
 }
 
 def performPackageMatchup() {
