@@ -1957,6 +1957,38 @@ def downloadFile(file) {
 	}
 }
 
+def downloadFileAsync(String file, String callback, Map data = null) {
+	try
+	{
+		def params = [
+			uri: file,
+			requestContentType: "application/json",
+			contentType: "text/plain",
+			timeout: 300
+		]
+		asynchttpGet(downloadFileAsyncCallback, params, [callback: callback, data: data, file: file])
+	}
+	catch (e) {
+		log.error "Error downloading ${file}: ${e}"
+		return null
+	}
+}
+
+def downloadFileAsyncCallback(resp, data) {
+	def result = null
+	try
+	{
+		if (resp.status >= 200 && resp.status <= 299)
+			result = resp.data
+		else
+			log.error "Error downloading ${data['file']}: Received response ${resp.status}"
+	}
+	catch (e) {
+		log.error "Error downloading ${data['file']}: ${e}"
+	}
+	this."${data['callback']}"(result, data['data'])
+}
+
 def getJSONFile(uri) {
 	try
 	{
@@ -1967,6 +1999,30 @@ def getJSONFile(uri) {
 		return null
 	}	
 }
+
+
+def getJSONFileAsync(String uri, String callback, Map data = null) {
+	try
+	{
+		downloadFileAsync(uri, getJSONAsyncResult, [callback: callback, data: data])
+	}
+	catch (e) {
+		return null
+	}	
+}
+
+def getJSONAsyncResult(resp, data) {
+	def result = null
+	try
+	{
+		result = new groovy.json.JsonSlurper().parseText(resp)
+	}
+	catch (e) {
+
+	}
+	this."${data['callback']}"(result, data['data'])
+}
+
 
 def getOptionalAppsFromManifest(manifest) {
 	def appsList = [:]
