@@ -406,7 +406,6 @@ def performRepositoryRefreshCallback(resp, data) {
 	}
 	allPackages = allPackages.sort()
 	categories = categories.sort()
-	log.debug allPackages.size()
 	atomicState.backgroundActionInProgress = false
 }
 
@@ -2051,10 +2050,9 @@ def getMultipleJSONFilesCallback(resp, data) {
 	}
 }
 
-def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null) {
+def getMultipleJSONFiles(uriList, completeCallback, statusCallback) {
 	def batchid = UUID.randomUUID().toString()
 	synchronized (downloadQueue) {
-		def itemsToRemove = []
 		for (batch in downloadQueue.keySet()) {
 			if (downloadQueue[batch].totalBatchSize == downloadQueue[batch].results.count { k, v -> v.complete == true}) {
 				itemsToRemove << batch
