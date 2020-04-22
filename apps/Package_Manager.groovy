@@ -270,7 +270,7 @@ def prefPkgInstallRepository() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "prefPkgInstallRepository"
 		atomicState.backgroundActionInProgress = true
-		getMultipleJSONFiles(installedRepositories, performRepositoryRefreshCallback,performRepositoryRefreshStatusCallback)
+		getMultipleJSONFiles(installedRepositories, performRepositoryRefreshCallback, performRepositoryRefreshStatusCallback, null)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgInstallRepository", title: "", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
@@ -370,12 +370,12 @@ def getRepoName(location) {
 	return listOfRepositories.repositories.find { it -> it.location == location }?.name
 }
 
-def performRepositoryRefreshStatusCallback(resp) {
+def performRepositoryRefreshStatusCallback(resp, data) {
 	def repoName = getRepoName(resp)
 	setBackgroundStatusMessage("Refreshing ${repoName}")
 }
 
-def performRepositoryRefreshCallback(resp) {
+def performRepositoryRefreshCallback(resp, data) {
 	allPackages = []
 	categories = []
 	for (key in resp.keySet()) {
@@ -1458,6 +1458,7 @@ def prefPkgMatchUpVerify() {
 		runInMillis(1,performPackageMatchup)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
+	log.debug "called"
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
@@ -1497,34 +1498,24 @@ def prefPkgMatchUpVerify() {
 			state.firstRun = false
 			return complete("Match Up Complete", "No matching packages were found, click Next to return to the Main Menu.")
 		}
-
 	}	
 }
 
-def performPatchMatchUpCallback(resp) {
+def performPackageMatchUpPackageLoadCallback(resp, data) {
 	def packagesToMatchAgainst = []
 	for (key in resp.keySet()) {
-		def repoName = getRepoName(key)
-		setBackgroundStatusMessage("Refreshing ${repoName}")
-		def fileContents = resp[key].result
-		if (!fileContents) {
-			log.warn "Error refreshing ${repoName}"
-			setBackgroundStatusMessage("Failed to refresh ${repoName}")
-			continue
-		}
-		for (pkg in fileContents.packages) {
-			def manifestContents = getJSONFile(pkg.location)
-			if (manifestContents == null)
-				log.warn "Found a bad manifest ${pkg.location}"
-			else {
-				def pkgDetails = [
-					repository: repoName,
-					name: pkg.name,
-					location: pkg.location,
-					manifest: manifestContents
-				]
-				packagesToMatchAgainst << pkgDetails
-			}
+		def pkg = data.packages.find { it -> it.location == key}
+		def manifestContents = resp[key].result
+		if (manifestContents == null)
+			log.warn "Found a bad manifest ${pkg.location}"
+		else {
+			def pkgDetails = [
+				repository: data.repoName,
+				name: pkg.name,
+				location: pkg.location,
+				manifest: manifestContents
+			]
+			packagesToMatchAgainst << pkgDetails
 		}
 	}
 	packagesMatchingInstalledEntries = []
@@ -1553,7 +1544,28 @@ def performPatchMatchUpCallback(resp) {
 	atomicState.backgroundActionInProgress = false
 }
 
-def performPatchMatchUpStatusCallback(resp) {
+def performPackageMatchUpPackageLoadStatusCallback(resp, data) {
+}
+
+def performPackageMatchUpCallback(resp, data) {
+	for (key in resp.keySet()) {
+		def repoName = getRepoName(key)
+		setBackgroundStatusMessage("Refreshing ${repoName}")
+		def fileContents = resp[key].result
+		if (!fileContents) {
+			log.warn "Error refreshing ${repoName}"
+			setBackgroundStatusMessage("Failed to refresh ${repoName}")
+			continue
+		}
+		def uriList = []
+		for (pkg in fileContents.packages) {
+			uriList << pkg.location
+		}
+		getMultipleJSONFiles(uriList, performPackageMatchUpPackageLoadCallback, performPackageMatchUpPackageLoadStatusCallback, [packages: fileContents.packages, repoName: repoName])
+	}
+}
+
+def performPackageMatchUpStatusCallback(resp, data) {
 	
 }
 
@@ -1578,7 +1590,7 @@ def performPackageMatchup() {
 		}
 	}
 	
-	getMultipleJSONFiles(installedRepositories, performPatchMatchUpCallback, performPatchMatchUpStatusCallback)
+	getMultipleJSONFiles(installedRepositories, performPackageMatchUpCallback, performPackageMatchUpStatusCallback, null)
 }
 
 def prefPkgMatchUpComplete() {
@@ -2015,13 +2027,13 @@ def getMultipleJSONFilesCallback(resp, data) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
 		downloadQueue[data.batchid].results[data.uri].complete = true
 		
-		"${data.statusCallback}"(data.uri)
+		"${data.statusCallback}"(data.uri, data.data)
 		if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize)
-			"${data.callback}"(downloadQueue[data.batchid].results)
+			"${data.callback}"(downloadQueue[data.batchid].results, data.data)
 	}
 }
 
-def getMultipleJSONFiles(uriList, completeCallback, statusCallback) {
+def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null) {
 	def batchid = UUID.randomUUID().toString()
 	synchronized (downloadQueue) {
 		for (batch in downloadQueue.keySet()) {
@@ -2034,7 +2046,7 @@ def getMultipleJSONFiles(uriList, completeCallback, statusCallback) {
 		
 		for (uri in uriList) {
 			downloadQueue[batchid].results[uri] = [complete: false, result: null]
-			getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: completeCallback, statusCallback: statusCallback])
+			getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: completeCallback, statusCallback: statusCallback, data: data])
 		}
 	}
 }
