@@ -975,83 +975,85 @@ def addUpdateDetails(pkgId, pkgName, releaseNotes, updateType, item) {
 	
 	logDebug "Updates found ${updateType} for ${pkgId} -> ${item?.name}"
 }
-// Update packages pathway
-def performUpdateCheck() {
-	packagesWithUpdates = [:]
 
-	for (pkg in state.manifests) {
-		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
-		def manifest = getJSONFile(pkg.key)
+def performUpdateCheckStatusCallback(resp, data) {
+	setBackgroundStatusMessage("Checking for updates for ${state.manifests[resp].packageName}")
+}
+
+def performUpdateCheckCallback(resp, data) {
+
+	for (key in resp.keySet()) {
+		def manifest = resp[key].result
 		
 		if (manifest == null) {
-			log.warn "Found a bad manifest ${pkg.key}"
+			log.warn "Found a bad manifest ${key}"
 			continue
 		}
-
-		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
-			logDebug "Updates found for package ${pkg.key}"
-			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
+		if (newVersionAvailable(manifest.version, state.manifests[key].version)) {
+			packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (installed: ${state.manifests[key].version} current: ${manifest.version})"]
+			logDebug "Updates found for package ${key}"
+			addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "package", null)
 		} 
 		else {
 			def appOrDriverNeedsUpdate = false
 			for (app in manifest.apps) {
+			log.debug app
                 try {
-				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app?.version != null && installedApp?.version != null) {
-					if (newVersionAvailable(app.version, installedApp.version)) {
+					def installedApp = getAppById(state.manifests[key], app.id)
+					if (app?.version != null && installedApp?.version != null) {
+						if (newVersionAvailable(app.version, installedApp.version)) {
+							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+								packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (driver or app has a new version)"]
+							}
+							appOrDriverNeedsUpdate = true
+							addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+						}
+					}
+					else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
 						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+							packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (driver or app has a new requirement)"]
 						}
 						appOrDriverNeedsUpdate = true
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+						addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
 					}
-				}
-				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+					else if (!installedApp && !app.required) {
+						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+							packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (new optional app or driver is available)"]
+						}
+						appOrDriverNeedsUpdate = true
+						addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "optapp", app)
 					}
-					appOrDriverNeedsUpdate = true
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
-				}
-				else if (!installedApp && !app.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
-					}
-					appOrDriverNeedsUpdate = true
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
-				}
                 }
-                catch (any) { log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer. "}
+                catch (any) { log.warn "Bad manifest for ${state.manifests[key].packageName}.  Please notify developer. "}
 			}
 			for (driver in manifest.drivers) {
         try {
-				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
+				def installedDriver = getDriverById(state.manifests[key], driver.id)
 				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
 						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
-							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+							packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (driver or app has a new version)"]
 						}
 						appOrDriverNeedsUpdate = true
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
+						addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
 					}
 				}
 				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+						packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (driver or app has a new requirement)"]
 					}
 					appOrDriverNeedsUpdate = true
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
+					addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
 				}
 				else if (!installedDriver && !driver.required) {
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
+					addUpdateDetails(key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
 					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+						packagesWithUpdates << ["${key}": "${state.manifests[key].packageName} (new optional app or driver is available)"]
 					}
 					appOrDriverNeedsUpdate = true
 				}
                 }
-                catch (any) {log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer."}
+                catch (any) {log.warn "Bad manifest for ${state.manifests[key].packageName}.  Please notify developer."}
 			}
 		}
 	}
@@ -1059,6 +1061,7 @@ def performUpdateCheck() {
 	atomicState.backgroundActionInProgress = false
 }
 
+// Update packages pathway
 def prefPkgUpdate() {
 	if (state.mainMenu)
 		return prefOptions()
@@ -1071,7 +1074,9 @@ def prefPkgUpdate() {
 		updateDetails = [:]
 		optionalItemsToShow = [:]
 		atomicState.backgroundActionInProgress = true
-		runInMillis(1,performUpdateCheck)
+		packagesWithUpdates = [:]
+	
+		getMultipleJSONFiles(state.manifests.keySet(), performUpdateCheckCallback, performUpdateCheckStatusCallback)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgUpdate", title: "", nextPage: "prefPkgUpdate", install: false, uninstall: false, refreshInterval: 2) {
