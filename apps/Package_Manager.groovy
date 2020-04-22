@@ -2543,7 +2543,7 @@ def updateRepositoryListing()
 
 def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 	def srcInstalledApps = srcManifest.apps?.findAll { it -> it.heID != null }
-	def srcInstalledDrivers = srcManifest.drivers?.findAll { it -> it.heID != null  && destManifest.drivers?.find { dit -> dit.id == it.id && dit.heID == null}}
+	def srcInstalledDrivers = srcManifest.drivers?.findAll { it -> it.heID != null }
 	
 	for (app in srcInstalledApps) {
 		def destApp = destManifest.apps?.find { it -> it.id == app.id }
