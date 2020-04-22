@@ -56,7 +56,6 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap downloadQueue = [:]
 @Field static Integer maxDownloadQueueSize = 10
 
-
 @Field static String installAction = ""
 @Field static String installMode = ""
 @Field static String statusMessage = ""
@@ -407,6 +406,7 @@ def performRepositoryRefreshCallback(resp, data) {
 	}
 	allPackages = allPackages.sort()
 	categories = categories.sort()
+	log.debug allPackages.size()
 	atomicState.backgroundActionInProgress = false
 }
 
@@ -2032,7 +2032,6 @@ def getJSONFile(uri) {
 	}	
 }
 
-<<<<<<< HEAD
 def getMultipleJSONFilesCallback(resp, data) {
 	synchronized (downloadQueue) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
@@ -2078,9 +2077,6 @@ def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null)
 		}
 	}
 }
-
-=======
->>>>>>> Added async download helper methods
 
 def getJSONFileAsync(String uri, String callback, Map data = null) {
 	try
