@@ -53,6 +53,7 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap listOfRepositories = [:]
 @Field static groovy.json.internal.LazyMap completedActions = [:]
 @Field static groovy.json.internal.LazyMap manifestForRollback = null
+@Field static groovy.json.internal.LazyMap downloadQueue = [:]
 
 
 @Field static String installAction = ""
@@ -400,6 +401,7 @@ def performRepositoryRefresh() {
 	}
 	allPackages = allPackages.sort()
 	categories = categories.sort()
+	log.debug allPackages.size()
 	atomicState.backgroundActionInProgress = false
 }
 
@@ -1995,6 +1997,29 @@ def getJSONFile(uri) {
 	catch (e) {
 		return null
 	}	
+}
+
+def getMultipleJSONFilesCallback(resp, data) {
+	synchronized (downloadQueue) {
+		log.debug "${data.uri} is complete"
+		downloadQueue[data.batchid].results[data.uri].result = resp
+		downloadQueue[data.batchid].results[data.uri].complete = true
+		
+		if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize)
+			"${data.callback}"(downloadQueue[data.batchid].results)
+	}
+}
+
+def getMultipleJSONFiles(uriList, callback) {
+	def batchid = UUID.randomUUID().toString()
+	synchronized (downloadQueue) {
+		downloadQueue[batchid] = [totalBatchSize: uriList.size(), results: [:]]
+		
+		for (uri in uriList) {
+			downloadQueue[batchid].results[uri] = [complete: false, result: null]
+			getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: callback])
+		}
+	}
 }
 
 
