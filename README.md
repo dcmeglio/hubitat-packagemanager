@@ -44,7 +44,7 @@ A Match Up will search through all of the apps and drivers you have installed on
 ![Match Up Packages](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MatchUp1.PNG)
 
 ## View Apps and Drivers
-This will show you all of the apps and drivers you have installed that are currently being managed by the Hubitat Package Manager. You should _Not_ uninstall or update these apps and drivers manually. You should only modify them using the Hubitat Package Manager.
+This will show you all of the apps and drivers you have installed that are currently being managed by the Hubitat Package Manager. You should _Not_ uninstall or update these apps and drivers manually. You should only modify them using the Hubitat Package Manager. If provided by the developer, you'll also find links to the documentation for a package as well as a link to the community discussion thread for the package.
 
 ![View Apps and Drivers](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/ViewApps1.PNG)
 
