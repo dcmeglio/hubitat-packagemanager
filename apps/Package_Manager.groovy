@@ -1459,6 +1459,7 @@ def prefPkgMatchUpVerify() {
 		runInMillis(1,performPackageMatchup)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
+	log.debug "called"
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
@@ -1509,8 +1510,7 @@ def performPackageMatchUpPackageLoadCallback(resp, data) {
 		def manifestContents = resp[key].result
 		if (manifestContents == null)
 			log.warn "Found a bad manifest ${pkg.location}"
-		else {
-			
+		else {		
 			def pkgDetails = [
 				repository: dataForItem.repoName,
 				name: pkg.name,
@@ -1547,14 +1547,13 @@ def performPackageMatchUpPackageLoadCallback(resp, data) {
 }
 
 def performPackageMatchUpPackageLoadStatusCallback(resp, data) {
-
 }
 
 def performPackageMatchUpCallback(resp, data) {
-	def uriList = []
-	def itemData = [:]
 	for (key in resp.keySet()) {
 		def repoName = getRepoName(key)
+		setBackgroundStatusMessage("Refreshing ${repoName}")
+
 		def fileContents = resp[key].result
 		if (!fileContents) {
 			log.warn "Error refreshing ${repoName}"
@@ -2049,7 +2048,7 @@ def getMultipleJSONFilesCallback(resp, data) {
 	}
 }
 
-def getMultipleJSONFiles(uriList, completeCallback, statusCallback) {
+def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null) {
 	def batchid = UUID.randomUUID().toString()
 	synchronized (downloadQueue) {
 		for (batch in downloadQueue.keySet()) {
