@@ -1641,10 +1641,12 @@ def prefPkgView() {
 			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a>"
 		str += "<ul>"
 		for (app in pkg.value.apps?.sort { it -> it.name}) {
-			str += "<li>${app.name} v${app.version ?: pkg.value.version} (app)</li>"
+			if (app.heID != null)
+				str += "<li>${app.name} v${app.version ?: pkg.value.version} (app)</li>"
 		}
 		for (driver in pkg.value.drivers?.sort { it -> it.name}) {
-			str += "<li>${driver.name} v${driver.version ?: pkg.value.version} (driver)</li>"
+			if (driver.heID != null)
+				str += "<li>${driver.name} v${driver.version ?: pkg.value.version} (driver)</li>"
 		}
 		str += "</ul></li>"
 	}
