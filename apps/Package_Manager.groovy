@@ -54,6 +54,7 @@ import groovy.transform.Field
 @Field static groovy.json.internal.LazyMap completedActions = [:]
 @Field static groovy.json.internal.LazyMap manifestForRollback = null
 @Field static groovy.json.internal.LazyMap downloadQueue = [:]
+@Field static Integer maxDownloadQueueSize = 5
 
 
 @Field static String installAction = ""
@@ -2032,8 +2033,16 @@ def getMultipleJSONFilesCallback(resp, data) {
 		downloadQueue[data.batchid].results[data.uri].complete = true
 		
 		"${data.statusCallback}"(data.uri, data.data)
-		if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize)
+		
+		def queuedItem = downloadQueue[data.batchid].results.find { k, v -> v.queued == true}
+		if (queuedItem != null) {
+			def itemValue = queuedItem.value
+			itemValue.queued = false
+			getJSONFileAsync(queuedItem.key, getMultipleJSONFilesCallback, [batchid: data.batchid, uri: queuedItem.key, callback: itemValue.callback, statusCallback: itemValue.statusCallback, data: itemValue.data])
+		}
+		else if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize) {
 			"${data.callback}"(downloadQueue[data.batchid].results, data.data)
+		}
 	}
 }
 
@@ -2044,7 +2053,6 @@ def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null)
 		for (batch in downloadQueue.keySet()) {
 			if (downloadQueue[batch].totalBatchSize == downloadQueue[batch].results.count { k, v -> v.complete == true}) {
 				itemsToRemove << batch
-				
 			}
 		}
 		for (removeItem in itemsToRemove) {
@@ -2054,8 +2062,13 @@ def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null)
 		downloadQueue[batchid] = [totalBatchSize: uriList.size(), results: [:]]
 		
 		for (uri in uriList) {
-			downloadQueue[batchid].results[uri] = [complete: false, result: null]
-			getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: completeCallback, statusCallback: statusCallback, data: data])
+			if (downloadQueue[batchid].results.count { k, v -> v.queued == false} < maxDownloadQueueSize) {
+				downloadQueue[batchid].results[uri] = [complete: false, result: null, queued: false]
+				getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: completeCallback, statusCallback: statusCallback, data: data])
+			}
+			else {
+				downloadQueue[batchid].results[uri] = [complete: false, result: null, queued: true, callback: completeCallback, statusCallback: statusCallback, data: data]
+			}
 		}
 	}
 }
