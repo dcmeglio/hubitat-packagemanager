@@ -28,6 +28,13 @@ If you need to add or remove an optional component from a package later, choose 
 
 Choose the components to add and/or remove. You will then be asked to confirm before the changes are made. Click _Next_ to complete the changes.
 
+## Repairing a Package
+If you accidentally manually uninstall an app or driver that is part of a package, or if an update goes wrong for some reason, use a repair to fix the package. Simply specify the package to repair. Click _Next_ to reinstall the package. Note that this will also update it to the latest version.
+
+![Modify Optional Addons](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Repair1.PNG)
+
+Choose the components to add and/or remove. You will then be asked to confirm before the changes are made. Click _Next_ to complete the changes.
+
 ## Uninstalling a Package
 If you'd like to uninstall a package, choose the _Uninstall_ option. Choose the package to uninstall and click _Next_. You will then be prompted to confirm the components that are to be removed. Note, this option cannot be undone. If you would like the package to be reinstalled you must do so by running an _Install_ and you will have to reconfigure all of your settings again.
 
