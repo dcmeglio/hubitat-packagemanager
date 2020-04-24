@@ -999,7 +999,7 @@ def performRepair() {
 		}
 		if (state.manifests[pkgRepair] != null)
 			copyInstalledItemsToNewManifest(state.manifests[pkgRepair], manifest)
-		state.manifests[pkgRepair] = installedManifest
+		state.manifests[pkgRepair] = manifest
 		minimizeStoredManifests()
 	}
 	else {
