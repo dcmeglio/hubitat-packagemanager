@@ -1724,12 +1724,12 @@ def performPackageMatchup() {
 		def matchedInstalledDrivers = []
 		
 		for (app in pkg.manifest.apps) {
-			def appsToAdd = allInstalledApps.find { it -> it.title == app.name && it.namespace == app.namespace}
+			def appsToAdd = findMatchingAppOrDriver(allInstalledApps, app)
 			if (appsToAdd != null)
 				matchedInstalledApps << appsToAdd
 		}
 		for (driver in pkg.manifest.drivers) {
-			def driversToAdd = allInstalledDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace}
+			def driversToAdd = findMatchingAppOrDriver(allInstalledDrivers, driver)
 			if (driversToAdd != null)
 				matchedInstalledDrivers << driversToAdd
 		}
@@ -1757,7 +1757,7 @@ def prefPkgMatchUpComplete() {
 			if (!pkgUpToDate && manifest.version != null)
 				manifest.version = "0.0"
 			for (app in manifest.apps) {
-				def installedApp = installedApps.find { it -> it.title == app.name && it.namespace == app.namespace }
+				def installedApp = findMatchingAppOrDriver(installedApps, app)
 				if (installedApp != null) {
 					app.heID = installedApp.id
 					if (!pkgUpToDate && app.version != null)
@@ -1766,7 +1766,7 @@ def prefPkgMatchUpComplete() {
 			}
 			
 			for (driver in manifest.drivers) {
-				def installedDriver = installedDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace }
+				def installedDriver = findMatchingAppOrDriver(installedDrivers, driver)
 				if (installedDriver != null) {
 					driver.heID = installedDriver.id
 					if (!pkgUpToDate && driver.version != null)
@@ -2758,6 +2758,20 @@ def minimizeStoredManifests() {
 			manifest.value.remove("dateReleased")
 		if (manifest.value.minimumHEVersion != null)
 			manifest.value.remove("minimumHEVersion")
+	}
+}
+
+def findMatchingAppOrDriver(installedList, item) {
+	def matchedItem = installedList.find { it -> it.title == item.name && it.namespace == item.namespace}
+	if (matchedItem != null)
+		return matchedItem
+	
+	if (item.alternateNames) {
+		for (altName in item.alternateNames) {
+			matchedItem = installedList.find { it -> it.title == altName.name && it.namespace == altName.namespace}
+			if (matchedItem != null)
+				return matchedItem
+		}
 	}
 }
 
