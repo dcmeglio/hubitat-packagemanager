@@ -1693,44 +1693,56 @@ def checkForUpdates() {
 			packagesWithUpdates << pkg.key
 		} 
 		else {
+			def appOrDriverNeedsUpdate = false
 			for (app in manifest.apps) {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
 				if (app?.version != null && installedApp?.version != null) {
 					if (newVersionAvailable(app.version, installedApp.version)) {
 						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
-						packagesWithUpdates << pkg.key
-						break
+						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+							packagesWithUpdates << pkg.key
+						}
+						appOrDriverNeedsUpdate = true
 					}
 				}
 				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
 					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
-					packagesWithUpdates << pkg.key
-					break
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << pkg.key
+					}
+					appOrDriverNeedsUpdate = true
 				}
 				else if (!installedApp && !app.required) {
-					packagesWithUpdates << pkg.key
-					break
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << pkg.key
+					}
+					appOrDriverNeedsUpdate = true
 				}
 			}
-			if (packagesWithUpdates.contains(pkg.key))
-				continue
+			
 			for (driver in manifest.drivers) {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
 				if (driver?.version != null && installedDriver?.version != null) {
 					if (newVersionAvailable(driver.version, installedDriver.version)) {
-						packagesWithUpdates << pkg.key
+						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+							packagesWithUpdates << pkg.key
+						}
 						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
-						break
 					}
+					appOrDriverNeedsUpdate = true
 				}
 				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
 					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", app)
-					packagesWithUpdates << pkg.key
-					break
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << pkg.key
+					}
+					appOrDriverNeedsUpdate = true
 				}
 				else if (!installedDriver && !driver.required) {
-					packagesWithUpdates << pkg.key
-					break
+					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+						packagesWithUpdates << pkg.key
+					}
+					appOrDriverNeedsUpdate = true
 				}
 			}
 		}
