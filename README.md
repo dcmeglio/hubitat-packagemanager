@@ -44,14 +44,17 @@ A Match Up will search through all of the apps and drivers you have installed on
 ![Match Up Packages](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MatchUp1.PNG)
 
 ## View Apps and Drivers
-This will show you all of the apps and drivers you have installed that are currently being managed by the Hubitat Package Manager. You should _Not_ uninstall or update these apps and drivers manually. You should only modify them using the Hubitat Package Manager.
+This will show you all of the apps and drivers you have installed that are currently being managed by the Hubitat Package Manager. You should _Not_ uninstall or update these apps and drivers manually. You should only modify them using the Hubitat Package Manager. If provided by the developer, you'll also find links to the documentation for a package as well as a link to the community discussion thread for the package.
 
 ![View Apps and Drivers](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/ViewApps1.PNG)
 
 ## Package Manager Settings
-This is where you can control the settings of the Hubitat Package Manager. You can modify your Hub Security settings, choose which repositories you want to use, and also _Add a Custom Repository_.
+This is where you can control the settings of the Hubitat Package Manager. You can modify your Hub Security settings, choose which repositories you want to use, enable or disable debug logging, manage updates, and also _Add a Custom Repository_.
 
 ![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings1.PNG)
+
+The updates include several options. You can configure when the update checker runs (Note: you should not run the checker during the Hubitat maintenance window at 3am), whether or not you'd like to receive a notification if updates are available, and if the updates should be installed automatically. You can choose to install all updates automatically, or just for certain packages. Additionally you can receive a push notification when an update either succeeds or fails.
+![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings2.PNG)
 
 ## Developer Information
 The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. You will need the .NET Core Framework which can be downloaded from Microsoft at:
