@@ -2,7 +2,7 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"dateReleased": "2020-04-22",
 	"releaseNotes": "Added the ability to turn debug logging on/off.\nAdded the ability to uninstall multiple packages at once.\nAdded the ability to specify what time update checking occurs and receive a notification of new updates available.\nAdded an auto-updater.\nAdded version numbers to the view apps/drivers screen.\nFixed a bug where the view apps page was showing optional components that weren't actually installed.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
