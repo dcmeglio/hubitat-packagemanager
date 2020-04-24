@@ -1414,6 +1414,7 @@ def performUpdates(runInBackground) {
 		else {
 		}
 	}
+	logDebug "Updates complete"
 	if (runInBackground != true)
 		atomicState.backgroundActionInProgress = false
 	else
@@ -2574,8 +2575,7 @@ def minimizeStoredManifests() {
 }
 
 def logDebug(msg) {
-	// For initial releases, hard coding debug mode to on.
-    if (settings?.debugOutput) {
+    if (settings?.debugOutput != false) {
 		log.debug msg
 	}
 }
