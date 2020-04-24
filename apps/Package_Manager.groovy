@@ -1515,7 +1515,7 @@ def performPackageMatchUpPackageLoadCallback(resp, data) {
 		def manifestContents = resp[key].result
 		if (manifestContents == null)
 			log.warn "Found a bad manifest ${pkg.location}"
-		else {		
+		else {
 			def pkgDetails = [
 				repository: dataForItem.repoName,
 				name: pkg.name,
