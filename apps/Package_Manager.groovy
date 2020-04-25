@@ -180,8 +180,9 @@ def prefSettings(params) {
 					paragraph "Please click Done and restart the app to continue."
 			}
 			if (!state.firstRun) {
-				section ("Logging") {
+				section ("General") {
 					input "debugOutput", "bool", title: "Enable debug logging", defaultValue: true
+					input "includeBetas", "bool", title: "When updating, install pre-release versions. Note: Pre-releases often include more bugs and should be considered beta software"
 				}
 				section ("Package Updates") {
 					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true		
