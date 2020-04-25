@@ -475,59 +475,65 @@ def performInstallation() {
 	def requiredDrivers = getRequiredDriversFromManifest(manifest)
 	
 	for (requiredApp in requiredApps) {
+		def location = getItemDownloadLocation(requiredApp.value)
 		setBackgroundStatusMessage("Downloading ${requiredApp.value.name}")
-		def fileContents = downloadFile(requiredApp.value.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
 			state.manifests.remove(pkgInstall)
-			return triggerError("Error downloading file", "An error occurred downloading ${requiredApp.value.location}", false)
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 		}
-		appFiles[requiredApp.value.location] = fileContents
+		appFiles[location] = fileContents
 	}
 	for (appToInstall in appsToInstall) {
+		def location = getItemDownloadLocation(matchedApp)
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
 			setBackgroundStatusMessage("Downloading ${matchedApp.name}")
-			def fileContents = downloadFile(matchedApp.location)
+			def fileContents = downloadFile(location)
 			if (fileContents == null) {
 				state.manifests.remove(pkgInstall)
-				return triggerError("Error downloading file", "An error occurred downloading ${matchedApp.location}", false)
+				return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 			}
-			appFiles[matchedApp.location] = fileContents
+			appFiles[location] = fileContents
 		}
 	}
 	for (requiredDriver in requiredDrivers) {
+		def location = getItemDownloadLocation(requiredDriver.value)
 		setBackgroundStatusMessage("Downloading ${requiredDriver.value.name}")
-		def fileContents = downloadFile(requiredDriver.value.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
 			state.manifests.remove(pkgInstall)
-			return triggerError("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}", false)
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 		}
-		driverFiles[requiredDriver.value.location] = fileContents
+		driverFiles[location] = fileContents
 	}
 	
 	for (driverToInstall in driversToInstall) {
+		def location = getItemDownloadLocation(matchedDriver)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
 			setBackgroundStatusMessage("Downloading ${matchedDriver.name}")
-			def fileContents = downloadFile(matchedDriver.location)
+			def fileContents = downloadFile(location)
 			if (fileContents == null) {
 				state.manifests.remove(pkgInstall)
-				return triggerError("Error downloading file", "An error occurred downloading ${matchedDriver.location}", false)
+				return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 			}
-			driverFiles[matchedDriver.location] = fileContents
+			driverFiles[location] = fileContents
 		}
 	}
 
 	initializeRollbackState("install")
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
+		def location = getItemDownloadLocation(requiredApp.value)
 		setBackgroundStatusMessage("Installing ${requiredApp.value.name}")
-		def id = installApp(appFiles[requiredApp.value.location])
+		def id = installApp(appFiles[location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install app ${requiredApp.value.location}", false)
+			return rollback("Failed to install app ${location}", false)
 		}
 		requiredApp.value.heID = id
+		requiredApp.value.beta = shouldInstallBeta(requiredApp)
 		if (requiredApp.value.oauth)
 			enableOAuth(requiredApp.value.heID)
 	}
@@ -535,38 +541,44 @@ def performInstallation() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
+			def location = getItemDownloadLocation(matchedApp)
 			setBackgroundStatusMessage("Installing ${matchedApp.name}")
-			def id = installApp(appFiles[matchedApp.location])
+			def id = installApp(appFiles[location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install app ${matchedApp.location}", false)
+				return rollback("Failed to install app ${location}", false)
 			}
 			matchedApp.heID = id
+			matchedApp.beta = shouldInstallBeta(matchedApp)
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
 	}
 	
 	for (requiredDriver in requiredDrivers) {
+		def location = getItemDownloadLocation(requiredDriver.value)
 		setBackgroundStatusMessage("Installing ${requiredDriver.value.name}")
-		def id = installDriver(driverFiles[requiredDriver.value.location])
+		def id = installDriver(driverFiles[location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install driver ${requiredDriver.value.location}", false)
+			return rollback("Failed to install driver ${location}", false)
 		}
 		requiredDriver.value.heID = id
+		requiredDriver.value.beta = shouldInstallBeta(requiredDriver.value)
 	}
 	
 	for (driverToInstall in driversToInstall) {
+		def location = getItemDownloadLocation(matchedDriver.value)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
 			setBackgroundStatusMessage("Installing ${matchedDriver.name}")
-			def id = installDriver(driverFiles[matchedDriver.location])
+			def id = installDriver(driverFiles[location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install driver ${matchedDriver.location}", false)
+				return rollback("Failed to install driver ${location}", false)
 			}
 			matchedDriver.heID = id
+			matchedDriver.beta = shouldInstallBeta(matchedDriver)
 		}
 	}
 	atomicState.backgroundActionInProgress = false
@@ -773,28 +785,31 @@ def performModify() {
 	
 	for (appToInstall in appsToInstallForModify) {
 		def app = getAppById(manifest, appToInstall)
+		def location = getItemDownloadLocation(app)
 		setBackgroundStatusMessage("Downloading ${app.name}")
-		def fileContents = downloadFile(app.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
-			return triggerError("Error downloading file", "An error occurred downloading ${app.location}", false)
-		}
-		appFiles[app.location] = fileContents
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
+		} 
+		appFiles[location] = fileContents
 	}
 	for (driverToInstall in driversToInstallForModify) {
 		def driver = getDriverById(manifest, driverToInstall)
+		def location = getItemDownloadLocation(driver)
 		setBackgroundStatusMessage("Downloading ${driver.name}")
-		def fileContents = downloadFile(driver.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
-			return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", false)
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 		}
-		driverFiles[driver.location] = fileContents
+		driverFiles[location] = fileContents
 	}
 	
 	initializeRollbackState("modify")
 	for (appToInstall in appsToInstallForModify) {
 		def app = getAppById(manifest, appToInstall)
+		def location = getItemDownloadLocation(app)
 		setBackgroundStatusMessage("Installing ${app.name}")
-		def id = installApp(appFiles[app.location])
+		def id = installApp(appFiles[location])
 		if (id != null)
 		{
 			app.heID = id
@@ -803,7 +818,7 @@ def performModify() {
 				enableOAuth(app.heID)
 		}
 		else
-			return rollback("Failed to install app ${app.location}", false)
+			return rollback("Failed to install app ${location}", false)
 	}
 	for (appToUninstall in appsToUninstallForModify) {
 		def app = getAppById(manifest, appToUninstall)
@@ -814,18 +829,19 @@ def performModify() {
 			app.heID = null
 		}
 		else
-			return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.", false)
+			return rollback("Failed to uninstall app ${app.name}, it may be in use. Please delete all instances of this app before uninstalling the package.", false)
 	}
 	
 	for (driverToInstall in driversToInstallForModify) {
 		def driver = getDriverById(manifest, driverToInstall)
+		def location = getItemDownloadLocation(driver)
 		setBackgroundStatusMessage("Installing ${driver.name}")
-		def id = installDriver(driverFiles[driver.location])
+		def id = installDriver(driverFiles[location])
 		if (id != null) {
 			driver.heID = id
 		}
 		else
-			return rollback("Failed to install driver ${driver.location}, it may be in use.", false)
+			return rollback("Failed to install driver ${location}, it may be in use.", false)
 		
 	}
 	for (driverToUninstall in driversToUninstallForModify) {
@@ -837,7 +853,7 @@ def performModify() {
 			driver.heID = null
 		}
 		else
-			return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.", false)
+			return rollback("Failed to uninstall driver ${driver.name}. Please delete all instances of this device before uninstalling the package.", false)
 	}
 	atomicState.backgroundActionInProgress = false
 }
@@ -906,38 +922,42 @@ def performRepair() {
 			def appHeID = getAppById(installedManifest,app.id)?.heID
 			if (isAppInstalled(installedManifest,app.id) && installedApps.find { it -> it.id == appHeID }) {
 				setBackgroundStatusMessage("Downloading ${app.name}")
-				def fileContents = downloadFile(app.location)
+				def location = getItemDownloadLocation(app)
+				def fileContents = downloadFile(location)
 				if (fileContents == null) {
-					return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 				}
-				appFiles[app.location] = fileContents	
+				appFiles[location] = fileContents	
 			}
 			else if (app.required) {
 				setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
-				def fileContents = downloadFile(app.location)
+				def location = getItemDownloadLocation(app)
+				def fileContents = downloadFile(location)
 				if (fileContents == null) {
-					return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 				}
-				appFiles[app.location] = fileContents
+				appFiles[location] = fileContents
 			}
 		}
 		for (driver in manifest.drivers) {
 			def driverHeID = getDriverById(installedManifest,driver.id)?.heID
 			if (isDriverInstalled(installedManifest,driver.id) && installedDrivers.find { it -> it.id == driverHeID }) {
+				def location = getItemDownloadLocation(driver)
 				setBackgroundStatusMessage("Downloading ${driver.name}")
-				def fileContents = downloadFile(driver.location)
+				def fileContents = downloadFile(location)
 				if (fileContents == null) {
-					return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 				}
-				driverFiles[driver.location] = fileContents
+				driverFiles[location] = fileContents
 			}
 			else if (driver.required) {
 				setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
-				def fileContents = downloadFile(driver.location)
+				def location = getItemDownloadLocation(driver)
+				def fileContents = downloadFile(location)
 				if (fileContents == null) {
-					return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 				}
-				driverFiles[driver.location] = fileContents
+				driverFiles[location] = fileContents
 			}
 		}
 	}
@@ -953,49 +973,57 @@ def performRepair() {
 			def appHeID = getAppById(installedManifest,app.id)?.heID
 			if (isAppInstalled(installedManifest,app.id) && installedApps.find { it -> it.id == appHeID }) {
 				app.heID = getAppById(installedManifest, app.id).heID
+				app.beta = shouldInstallBeta(app)
+				def location = getItemDownloadLocation(app)
 				def sourceCode = getAppSource(app.heID)
 				setBackgroundStatusMessage("Reinstalling ${app.name}")
-				if (upgradeApp(app.heID, appFiles[app.location])) {
+				if (upgradeApp(app.heID, appFiles[location])) {
 					completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 					if (app.oauth)
 						enableOAuth(app.heID)
 				}
 				else
-					return rollback("Failed to upgrade app ${app.location}", runInBackground)
+					return rollback("Failed to upgrade app ${location}", runInBackground)
 			}
 			else if (app.required) {
+				def location = getItemDownloadLocation(app)
 				setBackgroundStatusMessage("Installing ${app.name}")
-				def id = installApp(appFiles[app.location])
+				def id = installApp(appFiles[location])
 				if (id != null) {
 					app.heID = id
+					app.beta = shouldInstallBeta(app)
 					if (app.oauth)
 						enableOAuth(app.heID)
 				}
 				else
-					return rollback("Failed to install app ${app.location}", runInBackground)
+					return rollback("Failed to install app ${location}", runInBackground)
 			}
 		}
 		
 		for (driver in manifest.drivers) {
 			def driverHeID = getDriverById(installedManifest,driver.id)?.heID
 			if (isDriverInstalled(installedManifest,driver.id) && installedDrivers.find { it -> it.id == driverHeID }) {
+				def location = getItemDownloadLocation(driver)
 				driver.heID = getDriverById(installedManifest, driver.id).heID
+				driver.beta = shouldInstallBeta(driver)
 				def sourceCode = getDriverSource(driver.heID)
 				setBackgroundStatusMessage("Reinstalling ${driver.name}")
-				if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
+				if (upgradeDriver(driver.heID, driverFiles[location])) {
 					completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 				}
 				else
-					return rollback("Failed to upgrade driver ${driver.location}", runInBackground)
+					return rollback("Failed to upgrade driver ${location}", runInBackground)
 			}
 			else if (driver.required) {
+				def location = getItemDownloadLocation(driver)
 				setBackgroundStatusMessage("Installing ${driver.name}")
-				def id = installDriver(driverFiles[driver.location])
+				def id = installDriver(driverFiles[location])
 				if (id != null) {
 					driver.heID = id
+					driver.beta = shouldInstallBeta(driver)
 				}
 				else
-					return rollback("Failed to install driver ${driver.location}", runInBackground)
+					return rollback("Failed to install driver ${location}", runInBackground)
 			}
 		}
 		if (state.manifests[pkgRepair] != null)
@@ -2626,8 +2654,7 @@ def rollback(error, runInBackground) {
 	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.", runInBackground)
 }
 
-def installHPMManifest()
-{
+def installHPMManifest() {
 	if (state.manifests[listOfRepositories.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
 		login()
@@ -2651,8 +2678,7 @@ def installHPMManifest()
 	return true
 }
 
-def updateRepositoryListing()
-{
+def updateRepositoryListing() {
 	logDebug "Refreshing repository list"
 	def oldListOfRepositories = listOfRepositories
 	listOfRepositories = getJSONFile(repositoryListing)
@@ -2716,6 +2742,16 @@ def findMatchingAppOrDriver(installedList, item) {
 	}
 }
 
+def shouldInstallBeta(item) {
+	return item.betaLocation != null && includeBetas
+}
+
+def getItemDownloadLocation(item) {
+	if (item.betaLocation != null && includeBetas)
+		return item.betaLocation
+	return item.location
+}
+
 def logDebug(msg) {
     if (settings?.debugOutput != false) {
 		log.debug msg
@@ -2766,7 +2802,6 @@ def displayFooter(){
 		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
 	}       
 }
-
 
 // Thanks to gavincampbell for the code below!
 def getAppList() {
