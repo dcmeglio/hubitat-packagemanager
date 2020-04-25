@@ -1225,6 +1225,7 @@ def performUpdateCheck() {
 	}
 	packagesWithUpdates = packagesWithUpdates.sort { it -> it.value }
 	atomicState.backgroundActionInProgress = false
+	return packagesWithUpdates
 }
 
 def prefPkgUpdate() {
@@ -1858,69 +1859,9 @@ def buildErrorPage(title, message) {
 
 def checkForUpdates() {
 	def allUpgradeCount = 0
-	def packagesWithUpdates = []
-	for (pkg in state.manifests) {
-		def manifest = getJSONFile(pkg.key)
-		
-		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
-			packagesWithUpdates << pkg.key
-		} 
-		else {
-			def appOrDriverNeedsUpdate = false
-			for (app in manifest.apps) {
-				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app?.version != null && installedApp?.version != null) {
-					if (newVersionAvailable(app.version, installedApp.version)) {
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
-						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << pkg.key
-						}
-						appOrDriverNeedsUpdate = true
-					}
-				}
-				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-				else if (!installedApp && !app.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-			}
-			
-			for (driver in manifest.drivers) {
-				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver?.version != null && installedDriver?.version != null) {
-					if (newVersionAvailable(driver.version, installedDriver.version)) {
-						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << pkg.key
-						}
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
-					}
-					appOrDriverNeedsUpdate = true
-				}
-				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", app)
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-				else if (!installedDriver && !driver.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-			}
-		}
-	}
+	def packagesWithLabels = performUpdateCheck()
+	def packagesWithUpdates = packagesWithLabels?.keySet()
+	
 	if (packagesWithUpdates?.size() == 0)
 		app.updateLabel("Hubitat Package Manager")
 	else {
@@ -1969,7 +1910,6 @@ def checkForUpdates() {
 		else
 			app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 	}
-
 }
 
 def clearStateSettings(clearProgress) {
