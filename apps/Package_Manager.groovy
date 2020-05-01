@@ -278,6 +278,7 @@ def prefPkgInstallRepository() {
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgInstallRepository", title: "", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Install a Package</b>"
 				paragraph "Refreshing repositories... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -449,6 +450,7 @@ def prefInstall() {
 		return dynamicPage(name: "prefInstall", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Installing</b>"
 				paragraph "Your installation is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -763,6 +765,7 @@ def prefMakePackageChanges() {
 		return dynamicPage(name: "prefMakePackageChanges", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Modifying Package</b>"
 				paragraph "Your changes are currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -892,6 +895,7 @@ def prefPkgRepairExecute() {
 		return dynamicPage(name: "prefPkgRepairExecute", title: "", nextPage: "prefPkgRepairExecute", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Repairing Package</b>"
 				paragraph "Your changes are currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -1110,6 +1114,7 @@ def prefUninstall() {
 		return dynamicPage(name: "prefUninstall", title: "", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Uninstall in progress</b>"
 				paragraph "Your uninstall is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -1279,6 +1284,7 @@ def prefPkgUpdate() {
                 paragraph "<b>Checking for updates</b>"
 				paragraph "Checking for updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
+				showHideNextButton(false)
 			}
 		}
 	}
@@ -1291,7 +1297,9 @@ def prefPkgUpdate() {
                     paragraph "<b>Updates Available</b>"
 					paragraph "Updates are available."
 					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates, submitOnChange: true
+
 				}
+				
 				if (updateDetails?.size() > 0 && pkgsToUpdate != null) {
 					for (pkgToUpdate in pkgsToUpdate) {
 						def updateDetailsForPkg = updateDetails[pkgToUpdate]
@@ -1306,10 +1314,18 @@ def prefPkgUpdate() {
 							input "pkgsToAddOpt", "enum", title: "One or more packages has new optional components. Choose which ones to add", multiple: true, options:optionalItemsToShow
 						}
 					}
+					
+				}
+				section {
+					if (updateDetails?.size() > 0 && pkgsToUpdate != null)
+						showHideNextButton(true)
+					else
+						showHideNextButton(false)
 				}
 				section {
 					paragraph "<hr>"
 					input "btnMainMenu", "button", title: "Main Menu", width: 3
+					
 				}
 			}
 		}
@@ -1324,6 +1340,7 @@ def prefPkgUpdate() {
 				section {
 					paragraph "<hr>"
 					input "btnMainMenu", "button", title: "Main Menu", width: 3
+					showHideNextButton(true)
 				}
 			}
 		}
@@ -1345,8 +1362,7 @@ def prefPkgVerifyUpdates() {
 	if (pkgsToUpdate.size() == packagesWithUpdates.size())
 		app.updateLabel("Hubitat Package Manager")
 	else
-		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
-	
+		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")	
 	
 	for (pkg in pkgsToUpdate) {
 		updatesToInstall += "<li>${state.manifests[pkg].packageName}"
@@ -1397,6 +1413,7 @@ def prefPkgUpdatesComplete() {
 		return dynamicPage(name: "prefPkgUpdatesComplete", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Installing Updates</b>"
 				paragraph "Installing updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -1679,6 +1696,7 @@ def prefPkgMatchUpVerify() {
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Matching Installed Apps and Drivers</b>"
 				paragraph "Matching packages... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -1897,6 +1915,7 @@ def buildErrorPage(title, message) {
 		section {
             paragraph "<b>${title}</b>"
 			paragraph message
+			showHideNextButton(true)
 		}
 		section {
             paragraph "<hr>"
@@ -2625,6 +2644,7 @@ def complete(title, message) {
 		section {
             paragraph "<b>${title}</b>"
 			paragraph message
+			showHideNextButton(true)
 		}
 	}
 }
@@ -2824,6 +2844,11 @@ def displayFooter(){
 		paragraph getFormat("line")
 		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
 	}       
+}
+
+def showHideNextButton(show) {
+	if(show) paragraph "<script>\$('button[name=\"_action_next\"]').show()</script>"  
+	else paragraph "<script>\$('button[name=\"_action_next\"]').hide()</script>"
 }
 
 // Thanks to gavincampbell for the code below!
