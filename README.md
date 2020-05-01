@@ -64,14 +64,7 @@ The updates include several options. You can configure when the update checker r
 ![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings2.PNG)
 
 ## Developer Information
-The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. You will need the .NET Core Framework which can be downloaded from Microsoft at:
-
-* [Windows](https://docs.microsoft.com/en-us/dotnet/core/install/runtime?pivots=os-windows)
-* [MacOS](https://docs.microsoft.com/en-us/dotnet/core/install/runtime?pivots=os-macos) 
-* [Linux](https://docs.microsoft.com/en-us/dotnet/core/install/runtime?pivots=os-linux)
-
-Once installed, on Windows you can simply run `hpm --help` from a command line. On MacOS or Linux use `dotnet hpm.dll --help`
-
+The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. On Windows simply run the `hpm.exe --help` to get help, and on MacOS and Linux run `./hpm --help`
 
 ### Package Manifest 
 The package manifest is a JSON file that lists the apps and drivers that are part of your package. A recommendation when versioning your packages is to use [SemVer](https://semver.org/). This will ensure that the Hubitat Package Manager is always able to detect updates properly. You can either version the entire package as a whole, or each app/driver can be versioned, but don't mix-and-match within the same package.
