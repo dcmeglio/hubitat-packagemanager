@@ -2214,7 +2214,7 @@ def newVersionAvailable(item, installedItem) {
 		return false
 	versionStr = versionStr.replaceAll("[^\\d.]", "")
     installedVersionStr = installedVersionStr?.replaceAll("[^\\d.]", "")
-	def installedVersionParts = installedVersionStr.split(/\./)
+	def installedVersionParts = installedVersionStr?.split(/\./)
 	def newVersionParts = versionStr.split(/\./)
 
 	for (def i = 0; i < newVersionParts.size(); i++) {
