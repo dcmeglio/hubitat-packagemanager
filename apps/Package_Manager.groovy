@@ -28,6 +28,8 @@ preferences {
 	page(name: "prefPkgInstallRepository")
 	page(name: "prefPkgInstallRepositoryChoose")
 	page(name: "prefPkgModify")
+	page(name: "prefPkgRepair")
+	page(name: "prefPkgRepairExecute")
     page(name: "prefPkgUpdate")
 	page(name: "prefPkgUninstall")
     page(name: "prefInstallChoices")
@@ -140,6 +142,7 @@ def prefOptions() {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
 			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package. This allows you to add or remove optional components.")
+			href(name: "prefPkgRepair", title: "Repair", required: false, page: "prefPkgRepair", description: "Repair a package by ensuring all of the newest versions are installed in case something went wrong.")
 			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall packages.")
             href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates for your installed packages.")
 			href(name: "prefPkgMatchUp", title: "Match Up", required: false, page: "prefPkgMatchUp", description: "Match up the apps and drivers you already have installed with packages available so that you can use the package manager to get future updates.")
@@ -177,8 +180,9 @@ def prefSettings(params) {
 					paragraph "Please click Done and restart the app to continue."
 			}
 			if (!state.firstRun) {
-				section ("Logging") {
+				section ("General") {
 					input "debugOutput", "bool", title: "Enable debug logging", defaultValue: true
+					input "includeBetas", "bool", title: "When updating, install pre-release versions. Note: Pre-releases often include more bugs and should be considered beta software"
 				}
 				section ("Package Updates") {
 					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true		
@@ -274,6 +278,7 @@ def prefPkgInstallRepository() {
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgInstallRepository", title: "", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Install a Package</b>"
 				paragraph "Refreshing repositories... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -445,6 +450,7 @@ def prefInstall() {
 		return dynamicPage(name: "prefInstall", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Installing</b>"
 				paragraph "Your installation is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -471,59 +477,65 @@ def performInstallation() {
 	def requiredDrivers = getRequiredDriversFromManifest(manifest)
 	
 	for (requiredApp in requiredApps) {
+		def location = getItemDownloadLocation(requiredApp.value)
 		setBackgroundStatusMessage("Downloading ${requiredApp.value.name}")
-		def fileContents = downloadFile(requiredApp.value.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
 			state.manifests.remove(pkgInstall)
-			return triggerError("Error downloading file", "An error occurred downloading ${requiredApp.value.location}", false)
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 		}
-		appFiles[requiredApp.value.location] = fileContents
+		appFiles[location] = fileContents
 	}
 	for (appToInstall in appsToInstall) {
+		def location = getItemDownloadLocation(matchedApp)
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
 			setBackgroundStatusMessage("Downloading ${matchedApp.name}")
-			def fileContents = downloadFile(matchedApp.location)
+			def fileContents = downloadFile(location)
 			if (fileContents == null) {
 				state.manifests.remove(pkgInstall)
-				return triggerError("Error downloading file", "An error occurred downloading ${matchedApp.location}", false)
+				return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 			}
-			appFiles[matchedApp.location] = fileContents
+			appFiles[location] = fileContents
 		}
 	}
 	for (requiredDriver in requiredDrivers) {
+		def location = getItemDownloadLocation(requiredDriver.value)
 		setBackgroundStatusMessage("Downloading ${requiredDriver.value.name}")
-		def fileContents = downloadFile(requiredDriver.value.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
 			state.manifests.remove(pkgInstall)
-			return triggerError("Error downloading file", "An error occurred downloading ${requiredDriver.value.location}", false)
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 		}
-		driverFiles[requiredDriver.value.location] = fileContents
+		driverFiles[location] = fileContents
 	}
 	
 	for (driverToInstall in driversToInstall) {
+		def location = getItemDownloadLocation(matchedDriver)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
 			setBackgroundStatusMessage("Downloading ${matchedDriver.name}")
-			def fileContents = downloadFile(matchedDriver.location)
+			def fileContents = downloadFile(location)
 			if (fileContents == null) {
 				state.manifests.remove(pkgInstall)
-				return triggerError("Error downloading file", "An error occurred downloading ${matchedDriver.location}", false)
+				return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 			}
-			driverFiles[matchedDriver.location] = fileContents
+			driverFiles[location] = fileContents
 		}
 	}
 
 	initializeRollbackState("install")
 	// All files downloaded, execute installs.
 	for (requiredApp in requiredApps) {
+		def location = getItemDownloadLocation(requiredApp.value)
 		setBackgroundStatusMessage("Installing ${requiredApp.value.name}")
-		def id = installApp(appFiles[requiredApp.value.location])
+		def id = installApp(appFiles[location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install app ${requiredApp.value.location}", false)
+			return rollback("Failed to install app ${location}", false)
 		}
 		requiredApp.value.heID = id
+		requiredApp.value.beta = shouldInstallBeta(requiredApp)
 		if (requiredApp.value.oauth)
 			enableOAuth(requiredApp.value.heID)
 	}
@@ -531,38 +543,44 @@ def performInstallation() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
+			def location = getItemDownloadLocation(matchedApp)
 			setBackgroundStatusMessage("Installing ${matchedApp.name}")
-			def id = installApp(appFiles[matchedApp.location])
+			def id = installApp(appFiles[location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install app ${matchedApp.location}", false)
+				return rollback("Failed to install app ${location}", false)
 			}
 			matchedApp.heID = id
+			matchedApp.beta = shouldInstallBeta(matchedApp)
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
 	}
 	
 	for (requiredDriver in requiredDrivers) {
+		def location = getItemDownloadLocation(requiredDriver.value)
 		setBackgroundStatusMessage("Installing ${requiredDriver.value.name}")
-		def id = installDriver(driverFiles[requiredDriver.value.location])
+		def id = installDriver(driverFiles[location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install driver ${requiredDriver.value.location}", false)
+			return rollback("Failed to install driver ${location}", false)
 		}
 		requiredDriver.value.heID = id
+		requiredDriver.value.beta = shouldInstallBeta(requiredDriver.value)
 	}
 	
 	for (driverToInstall in driversToInstall) {
+		def location = getItemDownloadLocation(matchedDriver.value)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
 			setBackgroundStatusMessage("Installing ${matchedDriver.name}")
-			def id = installDriver(driverFiles[matchedDriver.location])
+			def id = installDriver(driverFiles[location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install driver ${matchedDriver.location}", false)
+				return rollback("Failed to install driver ${location}", false)
 			}
 			matchedDriver.heID = id
+			matchedDriver.beta = shouldInstallBeta(matchedDriver)
 		}
 	}
 	atomicState.backgroundActionInProgress = false
@@ -747,6 +765,7 @@ def prefMakePackageChanges() {
 		return dynamicPage(name: "prefMakePackageChanges", title: "", nextPage: "prefInstall", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Modifying Package</b>"
 				paragraph "Your changes are currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -769,28 +788,31 @@ def performModify() {
 	
 	for (appToInstall in appsToInstallForModify) {
 		def app = getAppById(manifest, appToInstall)
+		def location = getItemDownloadLocation(app)
 		setBackgroundStatusMessage("Downloading ${app.name}")
-		def fileContents = downloadFile(app.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
-			return triggerError("Error downloading file", "An error occurred downloading ${app.location}", false)
-		}
-		appFiles[app.location] = fileContents
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
+		} 
+		appFiles[location] = fileContents
 	}
 	for (driverToInstall in driversToInstallForModify) {
 		def driver = getDriverById(manifest, driverToInstall)
+		def location = getItemDownloadLocation(driver)
 		setBackgroundStatusMessage("Downloading ${driver.name}")
-		def fileContents = downloadFile(driver.location)
+		def fileContents = downloadFile(location)
 		if (fileContents == null) {
-			return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", false)
+			return triggerError("Error downloading file", "An error occurred downloading ${location}", false)
 		}
-		driverFiles[driver.location] = fileContents
+		driverFiles[location] = fileContents
 	}
 	
 	initializeRollbackState("modify")
 	for (appToInstall in appsToInstallForModify) {
 		def app = getAppById(manifest, appToInstall)
+		def location = getItemDownloadLocation(app)
 		setBackgroundStatusMessage("Installing ${app.name}")
-		def id = installApp(appFiles[app.location])
+		def id = installApp(appFiles[location])
 		if (id != null)
 		{
 			app.heID = id
@@ -799,7 +821,7 @@ def performModify() {
 				enableOAuth(app.heID)
 		}
 		else
-			return rollback("Failed to install app ${app.location}", false)
+			return rollback("Failed to install app ${location}", false)
 	}
 	for (appToUninstall in appsToUninstallForModify) {
 		def app = getAppById(manifest, appToUninstall)
@@ -810,18 +832,19 @@ def performModify() {
 			app.heID = null
 		}
 		else
-			return rollback("Failed to uninstall app ${app.location}, it may be in use. Please delete all instances of this app before uninstalling the package.", false)
+			return rollback("Failed to uninstall app ${app.name}, it may be in use. Please delete all instances of this app before uninstalling the package.", false)
 	}
 	
 	for (driverToInstall in driversToInstallForModify) {
 		def driver = getDriverById(manifest, driverToInstall)
+		def location = getItemDownloadLocation(driver)
 		setBackgroundStatusMessage("Installing ${driver.name}")
-		def id = installDriver(driverFiles[driver.location])
+		def id = installDriver(driverFiles[location])
 		if (id != null) {
 			driver.heID = id
 		}
 		else
-			return rollback("Failed to install driver ${driver.location}, it may be in use.", false)
+			return rollback("Failed to install driver ${location}, it may be in use.", false)
 		
 	}
 	for (driverToUninstall in driversToUninstallForModify) {
@@ -833,9 +856,193 @@ def performModify() {
 			driver.heID = null
 		}
 		else
-			return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.", false)
+			return rollback("Failed to uninstall driver ${driver.name}. Please delete all instances of this device before uninstalling the package.", false)
 	}
 	atomicState.backgroundActionInProgress = false
+}
+
+// Repair a package pathway
+def prefPkgRepair() {
+	if (state.mainMenu)
+		return prefOptions()
+	logDebug "prefPkgModify"
+	def pkgsToList = getInstalledPackages(false)
+	return dynamicPage(name: "prefPkgRepair", title: "", nextPage: "prefPkgRepairExecute", install: false, uninstall: false) {
+        displayHeader()
+		section {
+            paragraph "<b>Repair a Package</b>"
+			input "pkgRepair", "enum", title: "Choose the package to repair", options: pkgsToList, required: true
+		}
+		section {
+            paragraph "<hr>"
+            input "btnMainMenu", "button", title: "Main Menu", width: 3
+        }
+	}
+}
+
+def prefPkgRepairExecute() {
+	if (state.mainMenu)
+		return prefOptions()
+	if (errorOccurred == true) {
+		return buildErrorPage(errorTitle, errorMessage)
+	}
+	if (atomicState.backgroundActionInProgress == null) {
+		logDebug "Executing repair"
+		atomicState.backgroundActionInProgress = true
+		runInMillis(1,performRepair)
+	}
+	if (atomicState.backgroundActionInProgress != false) {
+		return dynamicPage(name: "prefPkgRepairExecute", title: "", nextPage: "prefPkgRepairExecute", install: false, uninstall: false, refreshInterval: 2) {
+            displayHeader()
+			section {
+				showHideNextButton(false)
+                paragraph "<b>Repairing Package</b>"
+				paragraph "Your changes are currently in progress... Please wait..."
+				paragraph getBackgroundStatusMessage()
+			}
+		}
+	}
+	else {
+		return complete("Repair complete", "The package was sucessfully repaired, click Next to return to the Main Menu.")
+	}
+}
+
+def performRepair() {
+	if (!login())
+		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", runInBackground)
+	
+	def installedApps = getAppList()
+	def installedDrivers = getDriverList()
+	
+	// Download all files first to reduce the chances of a network error
+	def appFiles = [:]
+	def driverFiles = [:]
+	
+	def installedManifest = state.manifests[pkgRepair]
+	def manifest = getJSONFile(pkgRepair)
+		
+	if (manifest) {
+		for (app in manifest.apps) {
+			def appHeID = getAppById(installedManifest,app.id)?.heID
+			if (isAppInstalled(installedManifest,app.id) && installedApps.find { it -> it.id == appHeID }) {
+				setBackgroundStatusMessage("Downloading ${app.name}")
+				def location = getItemDownloadLocation(app)
+				def fileContents = downloadFile(location)
+				if (fileContents == null) {
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+				}
+				appFiles[location] = fileContents	
+			}
+			else if (app.required) {
+				setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
+				def location = getItemDownloadLocation(app)
+				def fileContents = downloadFile(location)
+				if (fileContents == null) {
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+				}
+				appFiles[location] = fileContents
+			}
+		}
+		for (driver in manifest.drivers) {
+			def driverHeID = getDriverById(installedManifest,driver.id)?.heID
+			if (isDriverInstalled(installedManifest,driver.id) && installedDrivers.find { it -> it.id == driverHeID }) {
+				def location = getItemDownloadLocation(driver)
+				setBackgroundStatusMessage("Downloading ${driver.name}")
+				def fileContents = downloadFile(location)
+				if (fileContents == null) {
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+				}
+				driverFiles[location] = fileContents
+			}
+			else if (driver.required) {
+				setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
+				def location = getItemDownloadLocation(driver)
+				def fileContents = downloadFile(location)
+				if (fileContents == null) {
+					return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+				}
+				driverFiles[location] = fileContents
+			}
+		}
+	}
+	else {
+		return triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.", runInBackground)
+	}
+	
+	if (manifest) {
+		initializeRollbackState("update")
+		
+		manifestForRollback = installedManifest
+		for (app in manifest.apps) {
+			def appHeID = getAppById(installedManifest,app.id)?.heID
+			if (isAppInstalled(installedManifest,app.id) && installedApps.find { it -> it.id == appHeID }) {
+				app.heID = getAppById(installedManifest, app.id).heID
+				app.beta = shouldInstallBeta(app)
+				def location = getItemDownloadLocation(app)
+				def sourceCode = getAppSource(app.heID)
+				setBackgroundStatusMessage("Reinstalling ${app.name}")
+				if (upgradeApp(app.heID, appFiles[location])) {
+					completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
+					if (app.oauth)
+						enableOAuth(app.heID)
+				}
+				else
+					return rollback("Failed to upgrade app ${location}", runInBackground)
+			}
+			else if (app.required) {
+				def location = getItemDownloadLocation(app)
+				setBackgroundStatusMessage("Installing ${app.name}")
+				def id = installApp(appFiles[location])
+				if (id != null) {
+					app.heID = id
+					app.beta = shouldInstallBeta(app)
+					if (app.oauth)
+						enableOAuth(app.heID)
+				}
+				else
+					return rollback("Failed to install app ${location}", runInBackground)
+			}
+		}
+		
+		for (driver in manifest.drivers) {
+			def driverHeID = getDriverById(installedManifest,driver.id)?.heID
+			if (isDriverInstalled(installedManifest,driver.id) && installedDrivers.find { it -> it.id == driverHeID }) {
+				def location = getItemDownloadLocation(driver)
+				driver.heID = getDriverById(installedManifest, driver.id).heID
+				driver.beta = shouldInstallBeta(driver)
+				def sourceCode = getDriverSource(driver.heID)
+				setBackgroundStatusMessage("Reinstalling ${driver.name}")
+				if (upgradeDriver(driver.heID, driverFiles[location])) {
+					completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
+				}
+				else
+					return rollback("Failed to upgrade driver ${location}", runInBackground)
+			}
+			else if (driver.required) {
+				def location = getItemDownloadLocation(driver)
+				setBackgroundStatusMessage("Installing ${driver.name}")
+				def id = installDriver(driverFiles[location])
+				if (id != null) {
+					driver.heID = id
+					driver.beta = shouldInstallBeta(driver)
+				}
+				else
+					return rollback("Failed to install driver ${location}", runInBackground)
+			}
+		}
+		if (state.manifests[pkgRepair] != null)
+			copyInstalledItemsToNewManifest(state.manifests[pkgRepair], manifest)
+		state.manifests[pkgRepair] = manifest
+		minimizeStoredManifests()
+	}
+	else {
+	}
+	
+	logDebug "Repair complete"
+	if (runInBackground != true)
+		atomicState.backgroundActionInProgress = false
+	else
+		return true
 }
 
 // Uninstall a package pathway
@@ -907,6 +1114,7 @@ def prefUninstall() {
 		return dynamicPage(name: "prefUninstall", title: "", nextPage: "prefUninstall", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Uninstall in progress</b>"
 				paragraph "Your uninstall is currently in progress... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -982,8 +1190,9 @@ def performUpdateCheck() {
 			continue
 		}
 
-		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${manifest.version})"]
+		if (newVersionAvailable(manifest, state.manifests[pkg.key])) {
+			def version = includeBetas && manifest.betaVersion != null ? manifest.betaVersion : manifest.version
+			packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${version})"]
 			logDebug "Updates found for package ${pkg.key}"
 			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
 		} 
@@ -993,7 +1202,7 @@ def performUpdateCheck() {
                 try {
 				def installedApp = getAppById(state.manifests[pkg.key], app.id)
 				if (app?.version != null && installedApp?.version != null) {
-					if (newVersionAvailable(app.version, installedApp.version)) {
+					if (newVersionAvailable(app, installedApp)) {
 						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
 						}
@@ -1022,7 +1231,7 @@ def performUpdateCheck() {
         try {
 				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
 				if (driver?.version != null && installedDriver?.version != null) {
-					if (newVersionAvailable(driver.version, installedDriver.version)) {
+					if (newVersionAvailable(driver, installedDriver)) {
 						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
 							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
 						}
@@ -1051,6 +1260,7 @@ def performUpdateCheck() {
 	}
 	packagesWithUpdates = packagesWithUpdates.sort { it -> it.value }
 	atomicState.backgroundActionInProgress = false
+	return packagesWithUpdates
 }
 
 def prefPkgUpdate() {
@@ -1074,6 +1284,7 @@ def prefPkgUpdate() {
                 paragraph "<b>Checking for updates</b>"
 				paragraph "Checking for updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
+				showHideNextButton(false)
 			}
 		}
 	}
@@ -1086,7 +1297,9 @@ def prefPkgUpdate() {
                     paragraph "<b>Updates Available</b>"
 					paragraph "Updates are available."
 					input "pkgsToUpdate", "enum", title: "Which packages do you want to update?", multiple: true, required: true, options:packagesWithUpdates, submitOnChange: true
+
 				}
+				
 				if (updateDetails?.size() > 0 && pkgsToUpdate != null) {
 					for (pkgToUpdate in pkgsToUpdate) {
 						def updateDetailsForPkg = updateDetails[pkgToUpdate]
@@ -1101,10 +1314,18 @@ def prefPkgUpdate() {
 							input "pkgsToAddOpt", "enum", title: "One or more packages has new optional components. Choose which ones to add", multiple: true, options:optionalItemsToShow
 						}
 					}
+					
+				}
+				section {
+					if (updateDetails?.size() > 0 && pkgsToUpdate != null)
+						showHideNextButton(true)
+					else
+						showHideNextButton(false)
 				}
 				section {
 					paragraph "<hr>"
 					input "btnMainMenu", "button", title: "Main Menu", width: 3
+					
 				}
 			}
 		}
@@ -1119,6 +1340,7 @@ def prefPkgUpdate() {
 				section {
 					paragraph "<hr>"
 					input "btnMainMenu", "button", title: "Main Menu", width: 3
+					showHideNextButton(true)
 				}
 			}
 		}
@@ -1140,8 +1362,7 @@ def prefPkgVerifyUpdates() {
 	if (pkgsToUpdate.size() == packagesWithUpdates.size())
 		app.updateLabel("Hubitat Package Manager")
 	else
-		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
-	
+		app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")	
 	
 	for (pkg in pkgsToUpdate) {
 		updatesToInstall += "<li>${state.manifests[pkg].packageName}"
@@ -1192,6 +1413,7 @@ def prefPkgUpdatesComplete() {
 		return dynamicPage(name: "prefPkgUpdatesComplete", title: "", nextPage: "prefPkgUpdatesComplete", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Installing Updates</b>"
 				paragraph "Installing updates... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -1242,33 +1464,36 @@ def performUpdates(runInBackground) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
+						def location = getItemDownloadLocation(app)
 						setBackgroundStatusMessage("Downloading ${app.name}")
-						def fileContents = downloadFile(app.location)
+						def fileContents = downloadFile(location)
 						if (fileContents == null) {
-							return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
+							return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 						}
-						appFiles[app.location] = fileContents	
+						appFiles[location] = fileContents	
 					}
 				}
 				else if (app.required && !optionalItemsOnly(pkg)) {
+					def location = getItemDownloadLocation(app)
 					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
-					def fileContents = downloadFile(app.location)
+					def fileContents = downloadFile(location)
 					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
+						return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 					}
-					appFiles[app.location] = fileContents
+					appFiles[location] = fileContents
 				}
 				else {
+					def location = getItemDownloadLocation(app)
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
 							if (splitParts[1] == app.id) {
 								setBackgroundStatusMessage("Downloading optional component ${app.name}")
-								def fileContents = downloadFile(app.location)
+								def fileContents = downloadFile(location)
 								if (fileContents == null) {
-									return triggerError("Error downloading file", "An error occurred downloading ${app.location}", runInBackground)
+									return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 								}
-								appFiles[app.location] = fileContents
+								appFiles[location] = fileContents
 							}
 						}
 					}
@@ -1277,32 +1502,35 @@ def performUpdates(runInBackground) {
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					if (shouldUpgrade(pkg, driver.id)) {
+						def location = getItemDownloadLocation(driver)
 						setBackgroundStatusMessage("Downloading ${driver.name}")
-						def fileContents = downloadFile(driver.location)
+						def fileContents = downloadFile(location)
 						if (fileContents == null) {
-							return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
+							return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 						}
-						driverFiles[driver.location] = fileContents
+						driverFiles[location] = fileContents
 					}
 				}
 				else if (driver.required && !optionalItemsOnly(pkg)) {
+					def location = getItemDownloadLocation(driver)
 					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
-					def fileContents = downloadFile(driver.location)
+					def fileContents = downloadFile(location)
 					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
+						return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 					}
-					driverFiles[driver.location] = fileContents
+					driverFiles[location] = fileContents
 				}
 				else {
+					def location = getItemDownloadLocation(driver)
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split(':')
 						if (splitParts[0] == pkg && splitParts[1] == driver.id) {
 							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
-							def fileContents = downloadFile(driver.location)
+							def fileContents = downloadFile(location)
 							if (fileContents == null) {
-								return triggerError("Error downloading file", "An error occurred downloading ${driver.location}", runInBackground)
+								return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
 							}
-							driverFiles[driver.location] = fileContents
+							driverFiles[location] = fileContents
 						}
 					}
 				}
@@ -1324,43 +1552,49 @@ def performUpdates(runInBackground) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
+						def location = getItemDownloadLocation(app)
 						app.heID = getAppById(installedManifest, app.id).heID
+						app.beta = shouldInstallBeta(app)
 						def sourceCode = getAppSource(app.heID)
 						setBackgroundStatusMessage("Upgrading ${app.name}")
-						if (upgradeApp(app.heID, appFiles[app.location])) {
+						if (upgradeApp(app.heID, appFiles[location])) {
 							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							if (app.oauth)
 								enableOAuth(app.heID)
 						}
 						else
-							return rollback("Failed to upgrade app ${app.location}", runInBackground)
+							return rollback("Failed to upgrade app ${location}", runInBackground)
 					}
 				}
 				else if (app.required && !optionalItemsOnly(pkg)) {
+					def location = getItemDownloadLocation(app)
 					setBackgroundStatusMessage("Installing ${app.name}")
-					def id = installApp(appFiles[app.location])
+					def id = installApp(appFiles[location])
 					if (id != null) {
 						app.heID = id
+						app.beta = shouldInstallBeta(app)
 						if (app.oauth)
 							enableOAuth(app.heID)
 					}
 					else
-						return rollback("Failed to install app ${app.location}", runInBackground)
+						return rollback("Failed to install app ${location}", runInBackground)
 				}
 				else {
+					def location = getItemDownloadLocation(app)
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
 							if (splitParts[1] == app.id) {
 								setBackgroundStatusMessage("Installing ${app.name}")
-								def id = installApp(appFiles[app.location])
+								def id = installApp(appFiles[location])
 								if (id != null) {
 									app.heID = id
+									app.beta = shouldInstallBeta(app)
 									if (app.oauth)
 										enableOAuth(app.heID)
 								}
 								else
-									return rollback("Failed to install app ${app.location}", runInBackground)
+									return rollback("Failed to install app ${location}", runInBackground)
 							}
 						}
 					}
@@ -1370,37 +1604,43 @@ def performUpdates(runInBackground) {
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					if (shouldUpgrade(pkg, driver.id)) {
+						def location = getItemDownloadLocation(driver)
 						driver.heID = getDriverById(installedManifest, driver.id).heID
+						driver.beta = shouldInstallBeta(driver)
 						def sourceCode = getDriverSource(driver.heID)
 						setBackgroundStatusMessage("Upgrading ${driver.name}")
-						if (upgradeDriver(driver.heID, driverFiles[driver.location])) {
+						if (upgradeDriver(driver.heID, driverFiles[location])) {
 							completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 						}
 						else
-							return rollback("Failed to upgrade driver ${driver.location}", runInBackground)
+							return rollback("Failed to upgrade driver ${location}", runInBackground)
 					}
 				}
 				else if (driver.required && !optionalItemsOnly(pkg)) {
+					def location = getItemDownloadLocation(driver)
 					setBackgroundStatusMessage("Installing ${driver.name}")
-					def id = installDriver(driverFiles[driver.location])
+					def id = installDriver(driverFiles[location])
 					if (id != null) {
 						driver.heID = id
+						driver.beta = shouldInstallBeta(driver)
 					}
 					else
-						return rollback("Failed to install driver ${driver.location}", runInBackground)
+						return rollback("Failed to install driver ${location}", runInBackground)
 				}
 				else {
+					def location = getItemDownloadLocation(driver)
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
 							if (splitParts[1] == driver.id) {
 								setBackgroundStatusMessage("Installing ${driver.name}")
-								def id = installApp(appFiles[driver.location])
+								def id = installApp(appFiles[location])
 								if (id != null) {
 									driver.heID = id
+									driver.beta = shouldInstallBeta(driver)
 								}
 								else
-									return rollback("Failed to install driver ${driver.location}", runInBackground)
+									return rollback("Failed to install driver ${location}", runInBackground)
 							}
 						}
 					}
@@ -1456,6 +1696,7 @@ def prefPkgMatchUpVerify() {
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
             displayHeader()
 			section {
+				showHideNextButton(false)
                 paragraph "<b>Matching Installed Apps and Drivers</b>"
 				paragraph "Matching packages... Please wait..."
 				paragraph getBackgroundStatusMessage()
@@ -1550,12 +1791,12 @@ def performPackageMatchup() {
 		def matchedInstalledDrivers = []
 		
 		for (app in pkg.manifest.apps) {
-			def appsToAdd = allInstalledApps.find { it -> it.title == app.name && it.namespace == app.namespace}
+			def appsToAdd = findMatchingAppOrDriver(allInstalledApps, app)
 			if (appsToAdd != null)
 				matchedInstalledApps << appsToAdd
 		}
 		for (driver in pkg.manifest.drivers) {
-			def driversToAdd = allInstalledDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace}
+			def driversToAdd = findMatchingAppOrDriver(allInstalledDrivers, driver)
 			if (driversToAdd != null)
 				matchedInstalledDrivers << driversToAdd
 		}
@@ -1583,7 +1824,7 @@ def prefPkgMatchUpComplete() {
 			if (!pkgUpToDate && manifest.version != null)
 				manifest.version = "0.0"
 			for (app in manifest.apps) {
-				def installedApp = installedApps.find { it -> it.title == app.name && it.namespace == app.namespace }
+				def installedApp = findMatchingAppOrDriver(installedApps, app)
 				if (installedApp != null) {
 					app.heID = installedApp.id
 					if (!pkgUpToDate && app.version != null)
@@ -1592,7 +1833,7 @@ def prefPkgMatchUpComplete() {
 			}
 			
 			for (driver in manifest.drivers) {
-				def installedDriver = installedDrivers.find { it -> it.title == driver.name && it.namespace == driver.namespace }
+				def installedDriver = findMatchingAppOrDriver(installedDrivers, driver)
 				if (installedDriver != null) {
 					driver.heID = installedDriver.id
 					if (!pkgUpToDate && driver.version != null)
@@ -1674,6 +1915,7 @@ def buildErrorPage(title, message) {
 		section {
             paragraph "<b>${title}</b>"
 			paragraph message
+			showHideNextButton(true)
 		}
 		section {
             paragraph "<hr>"
@@ -1684,69 +1926,9 @@ def buildErrorPage(title, message) {
 
 def checkForUpdates() {
 	def allUpgradeCount = 0
-	def packagesWithUpdates = []
-	for (pkg in state.manifests) {
-		def manifest = getJSONFile(pkg.key)
-		
-		if (newVersionAvailable(manifest.version, state.manifests[pkg.key].version)) {
-			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
-			packagesWithUpdates << pkg.key
-		} 
-		else {
-			def appOrDriverNeedsUpdate = false
-			for (app in manifest.apps) {
-				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app?.version != null && installedApp?.version != null) {
-					if (newVersionAvailable(app.version, installedApp.version)) {
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
-						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << pkg.key
-						}
-						appOrDriverNeedsUpdate = true
-					}
-				}
-				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-				else if (!installedApp && !app.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-			}
-			
-			for (driver in manifest.drivers) {
-				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver?.version != null && installedDriver?.version != null) {
-					if (newVersionAvailable(driver.version, installedDriver.version)) {
-						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << pkg.key
-						}
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
-					}
-					appOrDriverNeedsUpdate = true
-				}
-				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", app)
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-				else if (!installedDriver && !driver.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << pkg.key
-					}
-					appOrDriverNeedsUpdate = true
-				}
-			}
-		}
-	}
+	def packagesWithLabels = performUpdateCheck()
+	def packagesWithUpdates = packagesWithLabels?.keySet() as List
+	
 	if (packagesWithUpdates?.size() == 0)
 		app.updateLabel("Hubitat Package Manager")
 	else {
@@ -1795,7 +1977,6 @@ def checkForUpdates() {
 		else
 			app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 	}
-
 }
 
 def clearStateSettings(clearProgress) {
@@ -1804,6 +1985,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("appsToInstall")
 	app.removeSetting("driversToInstall")
 	app.removeSetting("pkgModify")
+	app.removeSetting("pkgRepair")
 	app.removeSetting("appsToModify")
 	app.removeSetting("driversToModify")
 	app.removeSetting("pkgUninstall")
@@ -2044,12 +2226,14 @@ def verifyHEVersion(versionStr) {
 	return true
 }
 
-def newVersionAvailable(versionStr, installedVersionStr) {
+def newVersionAvailable(item, installedItem) {
+	def versionStr = includeBetas && item.betaVersion != null ? item?.betaVersion : item?.version
+	def installedVersionStr = installedItem.beta ? installedItem?.betaVersion : installedItem?.version
 	if (versionStr == null)
 		return false
 	versionStr = versionStr.replaceAll("[^\\d.]", "")
     installedVersionStr = installedVersionStr?.replaceAll("[^\\d.]", "")
-	def installedVersionParts = installedVersionStr.split(/\./)
+	def installedVersionParts = installedVersionStr?.split(/\./)
 	def newVersionParts = versionStr.split(/\./)
 
 	for (def i = 0; i < newVersionParts.size(); i++) {
@@ -2062,6 +2246,8 @@ def newVersionAvailable(versionStr, installedVersionStr) {
 			return true
 		}
 	}
+	if (versionStr == installedVersionStr && installedItem?.beta && versionStr == item?.version)
+		return true
 	return false
 }
 
@@ -2458,6 +2644,7 @@ def complete(title, message) {
 		section {
             paragraph "<b>${title}</b>"
 			paragraph message
+			showHideNextButton(true)
 		}
 	}
 }
@@ -2510,8 +2697,7 @@ def rollback(error, runInBackground) {
 	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.", runInBackground)
 }
 
-def installHPMManifest()
-{
+def installHPMManifest() {
 	if (state.manifests[listOfRepositories.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
 		login()
@@ -2535,8 +2721,7 @@ def installHPMManifest()
 	return true
 }
 
-def updateRepositoryListing()
-{
+def updateRepositoryListing() {
 	logDebug "Refreshing repository list"
 	def oldListOfRepositories = listOfRepositories
 	listOfRepositories = getJSONFile(repositoryListing)
@@ -2584,6 +2769,30 @@ def minimizeStoredManifests() {
 		if (manifest.value.minimumHEVersion != null)
 			manifest.value.remove("minimumHEVersion")
 	}
+}
+
+def findMatchingAppOrDriver(installedList, item) {
+	def matchedItem = installedList.find { it -> it.title == item.name && it.namespace == item.namespace}
+	if (matchedItem != null)
+		return matchedItem
+	
+	if (item.alternateNames) {
+		for (altName in item.alternateNames) {
+			matchedItem = installedList.find { it -> it.title == altName.name && it.namespace == altName.namespace}
+			if (matchedItem != null)
+				return matchedItem
+		}
+	}
+}
+
+def shouldInstallBeta(item) {
+	return item.betaLocation != null && includeBetas
+}
+
+def getItemDownloadLocation(item) {
+	if (item.betaLocation != null && includeBetas)
+		return item.betaLocation
+	return item.location
 }
 
 def logDebug(msg) {
@@ -2637,6 +2846,10 @@ def displayFooter(){
 	}       
 }
 
+def showHideNextButton(show) {
+	if(show) paragraph "<script>\$('button[name=\"_action_next\"]').show()</script>"  
+	else paragraph "<script>\$('button[name=\"_action_next\"]').hide()</script>"
+}
 
 // Thanks to gavincampbell for the code below!
 def getAppList() {

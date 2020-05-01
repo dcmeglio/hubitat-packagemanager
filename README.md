@@ -28,6 +28,13 @@ If you need to add or remove an optional component from a package later, choose 
 
 Choose the components to add and/or remove. You will then be asked to confirm before the changes are made. Click _Next_ to complete the changes.
 
+## Repairing a Package
+If you accidentally manually uninstall an app or driver that is part of a package, or if an update goes wrong for some reason, use a repair to fix the package. Simply specify the package to repair. Click _Next_ to reinstall the package. Note that this will also update it to the latest version.
+
+![Modify Optional Addons](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Repair1.PNG)
+
+Choose the components to add and/or remove. You will then be asked to confirm before the changes are made. Click _Next_ to complete the changes.
+
 ## Uninstalling a Package
 If you'd like to uninstall a package, choose the _Uninstall_ option. Choose the package to uninstall and click _Next_. You will then be prompted to confirm the components that are to be removed. Note, this option cannot be undone. If you would like the package to be reinstalled you must do so by running an _Install_ and you will have to reconfigure all of your settings again.
 
@@ -57,14 +64,7 @@ The updates include several options. You can configure when the update checker r
 ![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings2.PNG)
 
 ## Developer Information
-The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. You will need the .NET Core Framework which can be downloaded from Microsoft at:
-
-* [Windows](https://docs.microsoft.com/en-us/dotnet/core/install/runtime?pivots=os-windows)
-* [MacOS](https://docs.microsoft.com/en-us/dotnet/core/install/runtime?pivots=os-macos) 
-* [Linux](https://docs.microsoft.com/en-us/dotnet/core/install/runtime?pivots=os-linux)
-
-Once installed, on Windows you can simply run `hpm --help` from a command line. On MacOS or Linux use `dotnet hpm.dll --help`
-
+The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. On Windows simply run the `hpm.exe --help` to get help, and on MacOS and Linux run `./hpm --help`
 
 ### Package Manifest 
 The package manifest is a JSON file that lists the apps and drivers that are part of your package. A recommendation when versioning your packages is to use [SemVer](https://semver.org/). This will ensure that the Hubitat Package Manager is always able to detect updates properly. You can either version the entire package as a whole, or each app/driver can be versioned, but don't mix-and-match within the same package.
