@@ -129,6 +129,7 @@ def prefOptions() {
 	else {
 		clearStateSettings(true)
 		initialize()
+		installHPMManifest()
 	}
 	if (installedRepositories == null) {
 		logDebug "No installed repositories, grabbing all"
@@ -1535,6 +1536,8 @@ def performUpdates(runInBackground) {
 					}
 				}
 			}
+			if (pkg == listOfRepositories.hpm.location)
+				sendLocationEvent(name: "hpmVersion", value: manifest.version)
 		}
 		else {
 			return triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.", runInBackground)
@@ -2698,6 +2701,11 @@ def rollback(error, runInBackground) {
 }
 
 def installHPMManifest() {
+	if (location.hpmVersion == null) {
+		logDebug "Initializing HPM version"
+		createLocationVariable("hpmVersion")
+		sendLocationEvent(name: "hpmVersion", value: "0")
+	}
 	if (state.manifests[listOfRepositories.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
 		login()
@@ -2717,6 +2725,11 @@ def installHPMManifest() {
 		}
 		else
 			log.error "Unable to get the app ID of the package manager"
+	}
+	else if (location.hpmVersion != null && location.hpmVersion != "0") {
+		logDebug "Updating HPM version to ${location.hpmVersion} from previous upgrade"
+		state.manifests[listOfRepositories.hpm.location].version = location.hpmVersion
+		sendLocationEvent(name: "hpmVersion", value: "0")
 	}
 	return true
 }
