@@ -535,7 +535,7 @@ def performInstallation() {
 			return rollback("Failed to install app ${location}", false)
 		}
 		requiredApp.value.heID = id
-		requiredApp.value.beta = shouldInstallBeta(requiredApp)
+		requiredApp.value.beta = shouldInstallBeta(requiredApp.value)
 		if (requiredApp.value.oauth)
 			enableOAuth(requiredApp.value.heID)
 	}
@@ -543,7 +543,7 @@ def performInstallation() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
-			def location = getItemDownloadLocation(matchedApp)
+			def location = getItemDownloadLocation(matchedApp.value)
 			setBackgroundStatusMessage("Installing ${matchedApp.name}")
 			def id = installApp(appFiles[location])
 			if (id == null) {
@@ -551,7 +551,7 @@ def performInstallation() {
 				return rollback("Failed to install app ${location}", false)
 			}
 			matchedApp.heID = id
-			matchedApp.beta = shouldInstallBeta(matchedApp)
+			matchedApp.beta = shouldInstallBeta(matchedApp.value)
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
@@ -580,7 +580,7 @@ def performInstallation() {
 				return rollback("Failed to install driver ${location}", false)
 			}
 			matchedDriver.heID = id
-			matchedDriver.beta = shouldInstallBeta(matchedDriver)
+			matchedDriver.beta = shouldInstallBeta(matchedDriver.value)
 		}
 	}
 	atomicState.backgroundActionInProgress = false
