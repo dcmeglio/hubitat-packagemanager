@@ -892,6 +892,8 @@ def prefPkgRepairExecute() {
 		atomicState.backgroundActionInProgress = true
 		if (pkgRepair == listOfRepositories.hpm.location)
 			atomicState.hpmUpgraded = true
+		else
+			atomicState.hpmUpgraded = false
 		runInMillis(1,performRepair)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
@@ -909,7 +911,6 @@ def prefPkgRepairExecute() {
 		if (!atomicState.hpmUpgraded)
 			return complete("Repair complete", "The package was sucessfully repaired, click Next to return to the Main Menu.")
 		else {
-			atomicState.hpmUpgraded = false
 			return complete("Repair complete", "The package was sucessfully repaired, click Done to continue.", true)
 		}
 	}
@@ -1403,6 +1404,7 @@ def prefPkgUpdatesComplete() {
 	}
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Performing update"
+		atomicState.hpmUpgraded = false
 		for (pkg in pkgsToUpdate) {
 			if (pkg == listOfRepositories.hpm.location) {
 				atomicState.hpmUpgraded = true
@@ -1427,7 +1429,6 @@ def prefPkgUpdatesComplete() {
 		if (!atomicState.hpmUpgraded)
 			return complete("Updates complete", "The updates have been installed, click Next to return to the Main Menu.")
 		else {
-			atomicState.hpmUpgraded = false
 			return complete("Updates complete", "The updates have been installed, click Done to continue.", true)
 		}
 	}
