@@ -906,9 +906,8 @@ def prefPkgRepairExecute() {
 	else {
 		def hpmUpgraded = false
 		
-		if (listOfRepositories == null)
+		if (listOfRepositories?.size() ?: 0 == 0)
 			updateRepositoryListing()
-		log.debug listOfRepositories
 		if (pkgRepair == listOfRepositories.hpm.location)
 			hpmUpgraded = true
 
@@ -1424,7 +1423,7 @@ def prefPkgUpdatesComplete() {
 	else {
 		def hpmUpgraded = false
 		
-		if (listOfRepositories == null)
+		if (listOfRepositories?.size() ?: 0 == 0)
 			updateRepositoryListing()
 		for (pkg in pkgsToUpdate) {
 			if (pkg == listOfRepositories.hpm.location) {
