@@ -890,6 +890,8 @@ def prefPkgRepairExecute() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Executing repair"
 		atomicState.backgroundActionInProgress = true
+		if (pkgRepair == listOfRepositories.hpm.location)
+			atomicState.hpmUpgraded = true
 		runInMillis(1,performRepair)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
@@ -904,19 +906,12 @@ def prefPkgRepairExecute() {
 		}
 	}
 	else {
-		def hpmUpgraded = false
-		
-		if (listOfRepositories?.size() ?: 0 == 0)
-			updateRepositoryListing()
-		log.debug pkgRepair
-		log.debug listOfRepositories.hpm.location
-		if (pkgRepair == listOfRepositories.hpm.location)
-			hpmUpgraded = true
-
 		if (!hpmUpgraded)
 			return complete("Repair complete", "The package was sucessfully repaired, click Next to return to the Main Menu.")
-		else
+		else {
+			atomicState.hpmUpgraded = false
 			return complete("Repair complete", "The package was sucessfully repaired, click Done to continue.", true)
+		}
 	}
 }
 
