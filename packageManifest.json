@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "1.3.2",
-	"dateReleased": "2020-05-01",
-	"releaseNotes": "Added a repair function to let you reinstall packages that get screwed up.\nAdded a way to support beta packages.\nThe next button is now hidden when it shouldn't be available. This mostly fixes an issue where people experienced blank screens while updating packages.\nFixed an issue where sometimes HPM upgrades weren't registered and would be reinstalled over and over.",
+	"version": "1.3.3",
+	"dateReleased": "2020-05-03",
+	"releaseNotes": "Added a repair function to let you reinstall packages that get screwed up.\nAdded a way to support beta packages.\nThe next button is now hidden when it shouldn't be available. This mostly fixes an issue where people experienced blank screens while updating packages.\nFixed an issue where sometimes HPM upgrades weren't registered and would be reinstalled over and over.\nFixed an error message that would appear when updating/repairing HPM.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [

@@ -1,0 +1,45 @@
+{
+	"packageName": "BOND Home Integration",
+	"minimumHEVersion": "2.1.9",
+	"author": "Dominick Meglio",
+	"version": "1.1.2",
+	"betaVersion": "2.0.0",
+	"dateReleased": "2020-04-22",
+	"documentationLink": "link.to.documentation",
+	"communityLink": "link.to.forum.thread",
+	"licenseFile": "link.to.license.file.that.must.be.accepted",
+	"releaseNotes": "These are the changes in this version. You can use \n to put a new line in your text.",
+	"apps" : [
+		{
+			"id" : "bf7c20fb-1fa9-436f-9cfc-fb8520cda22a",
+			"name": "Sample App",
+			"namespace": "dcm",
+			"alternateNames" : [
+				{
+					"name": "Old App Name",
+					"namespace": "oldnamespace"
+				}
+			],
+			"location": "https://raw.githubusercontent.com/dcmeglio/.../file.groovy",
+			"betaLocation": "https://raw.githubusercontent.com/dcmeglio/.../betafile.groovy",
+			"required": true,
+			"oauth": false
+		}
+	],
+	"drivers" : [
+		{
+			"id": "163f6821-e8a7-48fc-8e66-c1787cfe54eb",
+			"name": "Sample Driver",
+			"namespace": "dcm",
+			"alternateNames" : [
+				{
+					"name": "Old Driver Name",
+					"namespace": "oldnamespace"
+				}
+			],
+			"location": "https://raw.githubusercontent.com/dcmeglio/.../file.groovy",
+			"betaLocation": "https://raw.githubusercontent.com/dcmeglio/.../betafile.groovy",
+			"required": true
+		}
+	]
+}
