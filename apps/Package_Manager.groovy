@@ -908,6 +908,7 @@ def prefPkgRepairExecute() {
 		
 		if (listOfRepositories == null)
 			updateRepositoryListing()
+		log.debug listOfRepositories
 		if (pkgRepair == listOfRepositories.hpm.location)
 			hpmUpgraded = true
 
