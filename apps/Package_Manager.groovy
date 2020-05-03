@@ -904,7 +904,17 @@ def prefPkgRepairExecute() {
 		}
 	}
 	else {
-		return complete("Repair complete", "The package was sucessfully repaired, click Next to return to the Main Menu.")
+		def hpmUpgraded = false
+		
+		if (listOfRepositories == null)
+			updateRepositoryListing()
+		if (pkgRepair == listOfRepositories.hpm.location)
+			hpmUpgraded = true
+
+		if (!hpmUpgraded)
+			return complete("Repair complete", "The package was sucessfully repaired, click Next to return to the Main Menu.")
+		else
+			return complete("Repair complete", "The package was sucessfully repaired, click Done to continue.", true)
 	}
 }
 
@@ -1332,18 +1342,7 @@ def prefPkgUpdate() {
 		}
 		else {
 			logDebug "No updates available"
-			return dynamicPage(name: "prefPkgUpdate", title: "", install: true, uninstall: false) {
-                displayHeader()
-				section {
-                    paragraph "<b>No Updates Available</b>"
-					paragraph "All packages are up to date."
-				}
-				section {
-					paragraph "<hr>"
-					input "btnMainMenu", "button", title: "Main Menu", width: 3
-					showHideNextButton(true)
-				}
-			}
+			return complete("No Updates Available", "All packages are up to date, click Next to return to the Main Menu.")
 		}
 	}
 }
@@ -1422,7 +1421,20 @@ def prefPkgUpdatesComplete() {
 		}
 	}
 	else {
-		return complete("Updates complete", "The updates have been installed, click Next to return to the Main Menu.")
+		def hpmUpgraded = false
+		
+		if (listOfRepositories == null)
+			updateRepositoryListing()
+		for (pkg in pkgsToUpdate) {
+			if (pkg == listOfRepositories.hpm.location) {
+				hpmUpgraded = true
+				break
+			}
+		}
+		if (!hpmUpgraded)
+			return complete("Updates complete", "The updates have been installed, click Next to return to the Main Menu.")
+		else
+			return complete("Updates complete", "The updates have been installed, click Done to continue.", true)
 	}
 }
 
@@ -2636,13 +2648,21 @@ def triggerError(title, message, runInBackground) {
 	errorMessage = message
 }
 
-def complete(title, message) {
+def complete(title, message, done = false) {
 	installAction = null
 	completedActions = null
 	manifestForRollback = null
 	clearStateSettings(false)
 	
-	return dynamicPage(name: "prefComplete", title: "", install: false, uninstall: false, nextPage: "prefOptions") {
+	def nextPage = "prefOptions"
+	def install = false
+	
+	if (done) {
+		install = true
+		nextPage = ""
+	}
+	
+	return dynamicPage(name: "prefComplete", title: "", install: install, uninstall: false, nextPage: nextPage) {
         displayHeader()
 		section {
             paragraph "<b>${title}</b>"
