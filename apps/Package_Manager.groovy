@@ -93,6 +93,29 @@ def initialize() {
 	else
 		timeOfDayForUpdateChecks = timeToday(updateCheckTime, location.timeZone)
 	schedule("00 ${timeOfDayForUpdateChecks.minutes} ${timeOfDayForUpdateChecks.hours} ? * *", checkForUpdates)
+	
+	if (!state.manifestsHavePayPalAndGitHub) {
+		logDebug "Adding GitHub and PayPal URLs to manifests..."
+		for (repo in installedRepositories) {
+			def repoName = getRepoName(repo)
+			def fileContents = getJSONFile(repo)
+			if (!fileContents) {
+				log.warn "Error refreshing ${repoName}"
+				setBackgroundStatusMessage("Failed to refresh ${repoName}")
+				continue
+			}
+			for (pkg in fileContents.packages) {
+				if (state.manifests[pkg.location]) {
+					
+					if (fileContents.gitHubUrl != null)
+						state.manifests[pkg.location].gitHubUrl = fileContents.gitHubUrl
+					if (fileContents.payPalUrl != null)
+						state.manifests[pkg.location].payPalUrl = fileContents.payPalUrl
+				}
+			}
+		}
+		state.manifestsHavePayPalAndGitHub = true
+	}
 }
 
 def uninstalled() {
@@ -1884,6 +1907,8 @@ def performPackageMatchup() {
 				log.warn "Found a bad manifest ${pkg.location}"
 			else {
 				def pkgDetails = [
+					gitHubUrl: fileContents.gitHubUrl,
+					payPalUrl: fileContents.payPalUrl,
 					repository: repoName,
 					name: pkg.name,
 					location: pkg.location,
@@ -1952,7 +1977,10 @@ def prefPkgMatchUpComplete() {
 			}
 			if (state.manifests[match])
 				copyInstalledItemsToNewManifest(state.manifests[match], manifest)
-			
+			if (matchFromState.gitHubUrl != null)
+				manifest.gitHubUrl = matchFromState.gitHubUrl
+			if (matchFromState.payPalUrl != null)
+				manifest.payPalUrl = matchFromState.payPalUrl
 			state.manifests[match] = manifest
 			minimizeStoredManifests()
 		}
@@ -1986,11 +2014,23 @@ def prefPkgView() {
 	
 	def sortedPkgs = state.manifests.sort{ it-> it.value.packageName}
 	for (pkg in sortedPkgs) {
+		def prependBar = false
 		str += "<li><b>${pkg.value.packageName}</b>"
-		if (pkg.value.documentationLink != null)
-			str += " <a href='${pkg.value.documentationLink}' target='_blank'>Documentation</a>"
-		if (pkg.value.communityLink != null)
-			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a>"
+		if (pkg.value.documentationLink != null) {
+			str += " <a href='${pkg.value.documentationLink}' target='_blank'>Documentation</a> "
+			prependBar = true
+		}
+		if (pkg.value.communityLink != null) {
+			if (prependBar)
+				str += "|"
+			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a> "
+			prependBar = true
+		}
+		if (pkg.value.payPalUrl != null) {
+			if (prependBar)
+				str += "|"
+			str += " <a href='${pkg.value.payPalUrl}' target='_blank'>Donate</a>"
+		}
 		str += "<ul>"
 		for (app in pkg.value.apps?.sort { it -> it.name}) {
 			if (app.heID != null)
@@ -2892,6 +2932,12 @@ def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
 	}
+	
+	if (srcManifest.payPalUrl != null)
+		destManifest.payPalUrl = srcManifest.payPalUrl
+		
+	if (srcManifest.gitHubUrl != null)
+		destManifest.gitHubUrl = srcManifest.gitHubUrl
 }
 
 def minimizeStoredManifests() {
