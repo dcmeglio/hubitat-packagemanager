@@ -25,6 +25,8 @@ preferences {
 	page(name: "prefOptions")
     page(name: "prefPkgInstall")
 	page(name: "prefPkgInstallUrl")
+	page(name: "prefInstallRepositorySearch")
+	page(name: "prefInstallRepositorySearchResults")
 	page(name: "prefPkgInstallRepository")
 	page(name: "prefPkgInstallRepositoryChoose")
 	page(name: "prefPkgModify")
@@ -50,6 +52,7 @@ preferences {
 
 import groovy.transform.Field
 @Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
+@Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
 @Field static groovy.json.internal.LazyMap listOfRepositories = [:]
@@ -102,6 +105,8 @@ def appButtonHandler(btn) {
 		case "btnMainMenu":
 			state.mainMenu = true
 			break
+		case "btnBack":
+			state.back = true
 		case "btnAddRepo":
 			state.customRepo = true
 			break
@@ -240,7 +245,8 @@ def prefPkgInstall() {
 		section {
             paragraph "<b>Install a Package</b>"
 			paragraph "How would you like to install this package?"
-			href(name: "prefPkgInstallRepository", title: "From a Repository", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository.")
+			href(name: "prefInstallRepositorySearch", title: "Search by Keywords", required: false, page: "prefInstallRepositorySearch", description: "Search for packages by searching for keywords. <b>This will only include the standard repositories, <i>not</i> custom repositories.</b>")
+			href(name: "prefPkgInstallRepository", title: "Browse by Categories", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository browsing by categories. <b>This will include both the standard repositories and any custom repositories you have setup.</b>")
 			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package. This is an advanced feature, only use it if you know how to find a package's manifest manually.")
 			
 		}
@@ -250,6 +256,92 @@ def prefPkgInstall() {
         }
 	}
 }
+
+def prefInstallRepositorySearch() {
+	if (state.mainMenu)
+		return prefOptions()
+	state.remove("back")
+	logDebug "prefInstallRepositorySearch"
+	installMode = "search"
+
+	return dynamicPage(name: "prefInstallRepositorySearch", title: "", nextPage: "prefInstallRepositorySearchResults", install: false, uninstall: false) {
+        displayHeader()
+		section {
+            paragraph "<b>Search</b>"
+			input "pkgSearch", "text", title: "Enter your search criteria", required: true
+		}
+		section {
+            paragraph "<hr>"
+			input "btnMainMenu", "button", title: "Main Menu", width: 3
+        }
+	}
+}
+
+def prefInstallRepositorySearchResults() {
+	if (state.mainMenu)
+		return prefOptions()
+	if (state.back)
+		return prefInstallRepositorySearch()
+	logDebug "prefInstallRepositorySearchResults"
+	installMode = "search"
+	
+	def params = [
+		uri: searchApiUrl,
+		contentType: "application/json",
+		requestContentType: "application/json",
+		body: [
+			"operationName": null,
+			"variables": [
+				"searchQuery": pkgSearch
+			],
+			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location}}}'
+		]
+	]
+	
+	def result = null
+	httpPost(params) { resp -> 
+		result = resp.data
+	}
+
+	if (result?.data?.repositories) {
+		def searchResults = []
+		for (repo in result.data.repositories) {
+			for (packageItem in repo.packages) {
+				if (!state.manifests[packageItem.location]) {
+					packageItem << [author: repo.author]
+					searchResults << packageItem
+				}
+			}
+		}
+		searchResults = searchResults.sort { it -> it.name }
+		return dynamicPage(name: "prefInstallRepositorySearch", title: "", nextPage: "prefInstallRepositorySearchResults", install: false, uninstall: false) {
+			displayHeader()
+			section {
+				paragraph "<b>Search Results for ${pkgSearch}</b>"
+			}	
+			section {
+				if (searchResults.size() > 0) {
+					def i = 0
+					for (searchResult in searchResults) {
+						href(name: "prefPkgInstallPackage${i}", title: "${searchResult.name} by ${searchResult.author}", required: false, page: "prefInstallChoices", description: searchResult.description, params: [location: searchResult.location]) 
+					}
+				}
+				else
+					paragraph "No matching packages were found. Click Back to return to the search screen."
+			}
+			section {
+				paragraph "<hr>"
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
+				input "btnBack", "button", title: "Back", width: 3
+			}
+			
+		}
+
+
+	}
+}
+
+
 
 def prefPkgInstallUrl() {
 	if (state.mainMenu)
@@ -291,11 +383,11 @@ def prefPkgInstallRepository() {
 	}
 	else {
 		installMode = "repository"
-		prefInstallChoices()
+		prefInstallChoices(null)
 	}
 }
 
-def prefInstallChoices() {
+def prefInstallChoices(params) {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallChoices"
@@ -332,6 +424,10 @@ def prefInstallChoices() {
 			}
 		}
         
+		if (installMode == "search") { 
+			pkgInstall = params.location
+			app.updateSetting("pkgInstall", params.location)
+		}
         if(pkgInstall) {
             if (state.manifests == null)
             state.manifests = [:]
@@ -2015,6 +2111,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgCategory")
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
+	app.removeSetting("pkgSearch")
 	packagesWithUpdates = [:]
 	updateDetails = [:]
 	packagesMatchingInstalledEntries = []
