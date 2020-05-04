@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager
+ *  Hubitat Package Manager v1.4.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -207,6 +207,9 @@ def prefSettings(params) {
 						if (notifyOnFailure)
 							input "notifyUpdateFailureDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
 					}
+					
+					if (notifyUpdatesAvailable || notifyOnSuccess || notifyOnFailure)
+						input "notifyIncludeHubName", "bool", title: "Include hub name in notifications", defaultValue: false
 				}
 				def reposToShow = [:]
 				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
@@ -1935,6 +1938,13 @@ def buildErrorPage(title, message) {
 	}
 }
 
+def buildNotification(text) {
+	if (notifyIncludeHubName)
+		return "${location.hub.name} - ${text}"
+	else
+		return text
+}
+
 def checkForUpdates() {
 	def allUpgradeCount = 0
 	def packagesWithLabels = performUpdateCheck()
@@ -1947,7 +1957,7 @@ def checkForUpdates() {
 		
 		if (notifyUpdatesAvailable && !state.updatesNotified) {
 			state.updatesNotified = true
-			notifyDevices*.deviceNotification("Hubitat Package updates are available")
+			notifyDevices*.deviceNotification(buildNotification("Hubitat Package updates are available"))
 		}
 		
 		if (autoUpdates) {
@@ -1961,7 +1971,7 @@ def checkForUpdates() {
 					def result = performUpdates(true)
 					if (result == true) {
 						if (notifyOnSuccess) {
-							notifyUpdateSuccessDevices*.deviceNotification("The packages were updated successfully")
+							notifyUpdateSuccessDevices*.deviceNotification(buildNotification("The packages were updated successfully"))
 							if (packagesWithUpdates.size() < allUpgradeCount)
 								app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 							else
@@ -1971,7 +1981,7 @@ def checkForUpdates() {
 					else {
 						log.error "Automatic update failure: ${result}"
 						if (notifyOnFailure) {
-							notifyUpdateFailureDevices*.deviceNotification("One or more packages failed to automatically update. Check the logs for more information")
+							notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
 							app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 						}
 					}
@@ -1979,7 +1989,7 @@ def checkForUpdates() {
 				catch (e) {
 					log.error "Automatic update failure: ${e}"
 					if (notifyOnFailure) {
-						notifyUpdateFailureDevices*.deviceNotification("One or more packages failed to automatically update. Check the logs for more information")
+						notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
 						app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 					}
 				}
