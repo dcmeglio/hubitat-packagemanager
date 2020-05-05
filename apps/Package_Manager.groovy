@@ -364,8 +364,6 @@ def prefInstallRepositorySearchResults() {
 	}
 }
 
-
-
 def prefPkgInstallUrl() {
 	if (state.mainMenu)
 		return prefOptions()
@@ -589,6 +587,14 @@ def performInstallation() {
 	if (!login())
 		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
 	def manifest = getJSONFile(pkgInstall)
+	
+	if (shouldInstallBeta(manifest)) {
+		manifest = getJSONFile(getItemDownloadLocation(manifest))
+		manifest.beta = true
+	}
+	else
+		manifest.beta = false
+
 	state.manifests[pkgInstall] = manifest
 	minimizeStoredManifests()
 	
@@ -1315,6 +1321,12 @@ def performUpdateCheck() {
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
 		def manifest = getJSONFile(pkg.key)
+		if (shouldInstallBeta(manifest)) {
+			manifest = getJSONFile(getItemDownloadLocation(manifest))
+			manifest.beta = true
+		}
+		else
+			manifest.beta = false
 		
 		if (manifest == null) {
 			log.warn "Found a bad manifest ${pkg.key}"
@@ -1588,6 +1600,12 @@ def performUpdates(runInBackground) {
 	
 	for (pkg in pkgsToUpdate) {
 		def manifest = getJSONFile(pkg)
+		if (shouldInstallBeta(manifest)) {
+			manifest = getJSONFile(getItemDownloadLocation(manifest))
+			manifest.beta = true
+		}
+		else
+			manifest.beta = false
 		def installedManifest = state.manifests[pkg]
 		
 		downloadedManifests[pkg] = manifest
@@ -2386,7 +2404,7 @@ def verifyHEVersion(versionStr) {
 
 def newVersionAvailable(item, installedItem) {
 	def versionStr = includeBetas && item.betaVersion != null ? item?.betaVersion : item?.version
-	def installedVersionStr = installedItem.beta ? installedItem?.betaVersion : installedItem?.version
+	def installedVersionStr = installedItem.beta ? (installedItem?.betaVersion ?: installedItem?.version) : installedItem?.version
 	if (versionStr == null)
 		return false
 	versionStr = versionStr.replaceAll("[^\\d.]", "")
