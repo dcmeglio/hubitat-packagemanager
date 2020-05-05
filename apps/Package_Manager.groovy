@@ -2076,7 +2076,7 @@ def buildErrorPage(title, message) {
 
 def buildNotification(text) {
 	if (notifyIncludeHubName)
-		return "${location.hub.name} - ${text}"
+		return "${location.name} - ${text}"
 	else
 		return text
 }
