@@ -1474,6 +1474,7 @@ def prefPkgUpdate() {
 		}
 		else {
 			logDebug "No updates available"
+			app.updateLabel("Hubitat Package Manager")
 			return complete("No Updates Available", "All packages are up to date, click Next to return to the Main Menu.")
 		}
 	}
@@ -2889,7 +2890,10 @@ def installHPMManifest() {
 	}
 	if (state.manifests[listOfRepositories.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
-		login()
+		if (!login()) {
+			log.error "Failed to login to hub, please verify the username and password"
+			return false
+		}
 		def appsInstalled = getAppList()
 		
 		logDebug "Installing HPM Manifest"
