@@ -616,9 +616,9 @@ def performInstallation() {
 		appFiles[location] = fileContents
 	}
 	for (appToInstall in appsToInstall) {
-		def location = getItemDownloadLocation(matchedApp)
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
+			def location = getItemDownloadLocation(matchedApp)
 			setBackgroundStatusMessage("Downloading ${matchedApp.name}")
 			def fileContents = downloadFile(location)
 			if (fileContents == null) {
@@ -640,9 +640,9 @@ def performInstallation() {
 	}
 	
 	for (driverToInstall in driversToInstall) {
-		def location = getItemDownloadLocation(matchedDriver)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
+			def location = getItemDownloadLocation(matchedDriver)
 			setBackgroundStatusMessage("Downloading ${matchedDriver.name}")
 			def fileContents = downloadFile(location)
 			if (fileContents == null) {
@@ -672,7 +672,7 @@ def performInstallation() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
-			def location = getItemDownloadLocation(matchedApp.value)
+			def location = getItemDownloadLocation(matchedApp)
 			setBackgroundStatusMessage("Installing ${matchedApp.name}")
 			def id = installApp(appFiles[location])
 			if (id == null) {
@@ -699,9 +699,9 @@ def performInstallation() {
 	}
 	
 	for (driverToInstall in driversToInstall) {
-		def location = getItemDownloadLocation(matchedDriver.value)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
+			def location = getItemDownloadLocation(matchedDriver)
 			setBackgroundStatusMessage("Installing ${matchedDriver.name}")
 			def id = installDriver(driverFiles[location])
 			if (id == null) {
