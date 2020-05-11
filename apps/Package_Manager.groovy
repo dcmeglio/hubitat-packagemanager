@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager
+ *  Hubitat Package Manager v1.4.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -25,6 +25,8 @@ preferences {
 	page(name: "prefOptions")
     page(name: "prefPkgInstall")
 	page(name: "prefPkgInstallUrl")
+	page(name: "prefInstallRepositorySearch")
+	page(name: "prefInstallRepositorySearchResults")
 	page(name: "prefPkgInstallRepository")
 	page(name: "prefPkgInstallRepositoryChoose")
 	page(name: "prefPkgModify")
@@ -50,6 +52,7 @@ preferences {
 
 import groovy.transform.Field
 @Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
+@Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
 @Field static groovy.json.internal.LazyMap listOfRepositories = [:]
@@ -90,6 +93,29 @@ def initialize() {
 	else
 		timeOfDayForUpdateChecks = timeToday(updateCheckTime, location.timeZone)
 	schedule("00 ${timeOfDayForUpdateChecks.minutes} ${timeOfDayForUpdateChecks.hours} ? * *", checkForUpdates)
+	
+	if (!state.manifestsHavePayPalAndGitHub) {
+		logDebug "Adding GitHub and PayPal URLs to manifests..."
+		for (repo in installedRepositories) {
+			def repoName = getRepoName(repo)
+			def fileContents = getJSONFile(repo)
+			if (!fileContents) {
+				log.warn "Error refreshing ${repoName}"
+				setBackgroundStatusMessage("Failed to refresh ${repoName}")
+				continue
+			}
+			for (pkg in fileContents.packages) {
+				if (state.manifests[pkg.location]) {
+					
+					if (fileContents.gitHubUrl != null)
+						state.manifests[pkg.location].gitHubUrl = fileContents.gitHubUrl
+					if (fileContents.payPalUrl != null)
+						state.manifests[pkg.location].payPalUrl = fileContents.payPalUrl
+				}
+			}
+		}
+		state.manifestsHavePayPalAndGitHub = true
+	}
 }
 
 def uninstalled() {
@@ -102,6 +128,8 @@ def appButtonHandler(btn) {
 		case "btnMainMenu":
 			state.mainMenu = true
 			break
+		case "btnBack":
+			state.back = true
 		case "btnAddRepo":
 			state.customRepo = true
 			break
@@ -207,6 +235,9 @@ def prefSettings(params) {
 						if (notifyOnFailure)
 							input "notifyUpdateFailureDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
 					}
+					
+					if (notifyUpdatesAvailable || notifyOnSuccess || notifyOnFailure)
+						input "notifyIncludeHubName", "bool", title: "Include hub name in notifications", defaultValue: false
 				}
 				def reposToShow = [:]
 				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
@@ -237,7 +268,8 @@ def prefPkgInstall() {
 		section {
             paragraph "<b>Install a Package</b>"
 			paragraph "How would you like to install this package?"
-			href(name: "prefPkgInstallRepository", title: "From a Repository", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository.")
+			href(name: "prefInstallRepositorySearch", title: "Search by Keywords", required: false, page: "prefInstallRepositorySearch", description: "Search for packages by searching for keywords. <b>This will only include the standard repositories, <i>not</i> custom repositories.</b>")
+			href(name: "prefPkgInstallRepository", title: "Browse by Categories", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository browsing by categories. <b>This will include both the standard repositories and any custom repositories you have setup.</b>")
 			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package. This is an advanced feature, only use it if you know how to find a package's manifest manually.")
 			
 		}
@@ -245,6 +277,90 @@ def prefPkgInstall() {
             paragraph "<hr>"
             input "btnMainMenu", "button", title: "Main Menu", width: 3
         }
+	}
+}
+
+def prefInstallRepositorySearch() {
+	if (state.mainMenu)
+		return prefOptions()
+	state.remove("back")
+	logDebug "prefInstallRepositorySearch"
+	installMode = "search"
+
+	return dynamicPage(name: "prefInstallRepositorySearch", title: "", nextPage: "prefInstallRepositorySearchResults", install: false, uninstall: false) {
+        displayHeader()
+		section {
+            paragraph "<b>Search</b>"
+			input "pkgSearch", "text", title: "Enter your search criteria", required: true
+		}
+		section {
+            paragraph "<hr>"
+			input "btnMainMenu", "button", title: "Main Menu", width: 3
+        }
+	}
+}
+
+def prefInstallRepositorySearchResults() {
+	if (state.mainMenu)
+		return prefOptions()
+	if (state.back)
+		return prefInstallRepositorySearch()
+	logDebug "prefInstallRepositorySearchResults"
+	installMode = "search"
+	
+	def params = [
+		uri: searchApiUrl,
+		contentType: "application/json",
+		requestContentType: "application/json",
+		body: [
+			"operationName": null,
+			"variables": [
+				"searchQuery": pkgSearch
+			],
+			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location}}}'
+		]
+	]
+	
+	def result = null
+	httpPost(params) { resp -> 
+		result = resp.data
+	}
+
+	if (result?.data?.repositories) {
+		def searchResults = []
+		for (repo in result.data.repositories) {
+			for (packageItem in repo.packages) {
+				if (!state.manifests[packageItem.location]) {
+					packageItem << [author: repo.author]
+					searchResults << packageItem
+				}
+			}
+		}
+		searchResults = searchResults.sort { it -> it.name }
+		return dynamicPage(name: "prefInstallRepositorySearch", title: "", nextPage: "prefInstallRepositorySearchResults", install: false, uninstall: false) {
+			displayHeader()
+			section {
+				paragraph "<b>Search Results for ${pkgSearch}</b>"
+			}	
+			section {
+				if (searchResults.size() > 0) {
+					def i = 0
+					for (searchResult in searchResults) {
+						href(name: "prefPkgInstallPackage${i}", title: "${searchResult.name} by ${searchResult.author}", required: false, page: "prefInstallChoices", description: searchResult.description, params: [location: searchResult.location]) 
+					}
+				}
+				else
+					paragraph "No matching packages were found. Click Back to return to the search screen."
+			}
+			section {
+				paragraph "<hr>"
+				input "btnMainMenu", "button", title: "Main Menu", width: 3
+				input "btnBack", "button", title: "Back", width: 3
+			}
+			
+		}
+
+
 	}
 }
 
@@ -288,11 +404,11 @@ def prefPkgInstallRepository() {
 	}
 	else {
 		installMode = "repository"
-		prefInstallChoices()
+		prefInstallChoices(null)
 	}
 }
 
-def prefInstallChoices() {
+def prefInstallChoices(params) {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallChoices"
@@ -329,6 +445,10 @@ def prefInstallChoices() {
 			}
 		}
         
+		if (installMode == "search") { 
+			pkgInstall = params.location
+			app.updateSetting("pkgInstall", params.location)
+		}
         if(pkgInstall) {
             if (state.manifests == null)
             state.manifests = [:]
@@ -467,6 +587,14 @@ def performInstallation() {
 	if (!login())
 		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
 	def manifest = getJSONFile(pkgInstall)
+	
+	if (shouldInstallBeta(manifest)) {
+		manifest = getJSONFile(getItemDownloadLocation(manifest))
+		manifest.beta = true
+	}
+	else
+		manifest.beta = false
+
 	state.manifests[pkgInstall] = manifest
 	minimizeStoredManifests()
 	
@@ -488,9 +616,9 @@ def performInstallation() {
 		appFiles[location] = fileContents
 	}
 	for (appToInstall in appsToInstall) {
-		def location = getItemDownloadLocation(matchedApp)
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
+			def location = getItemDownloadLocation(matchedApp)
 			setBackgroundStatusMessage("Downloading ${matchedApp.name}")
 			def fileContents = downloadFile(location)
 			if (fileContents == null) {
@@ -512,9 +640,9 @@ def performInstallation() {
 	}
 	
 	for (driverToInstall in driversToInstall) {
-		def location = getItemDownloadLocation(matchedDriver)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
+			def location = getItemDownloadLocation(matchedDriver)
 			setBackgroundStatusMessage("Downloading ${matchedDriver.name}")
 			def fileContents = downloadFile(location)
 			if (fileContents == null) {
@@ -544,7 +672,7 @@ def performInstallation() {
 	for (appToInstall in appsToInstall) {
 		def matchedApp = manifest.apps.find { it.id == appToInstall}
 		if (matchedApp != null) {
-			def location = getItemDownloadLocation(matchedApp.value)
+			def location = getItemDownloadLocation(matchedApp)
 			setBackgroundStatusMessage("Installing ${matchedApp.name}")
 			def id = installApp(appFiles[location])
 			if (id == null) {
@@ -552,7 +680,7 @@ def performInstallation() {
 				return rollback("Failed to install app ${location}", false)
 			}
 			matchedApp.heID = id
-			matchedApp.beta = shouldInstallBeta(matchedApp.value)
+			matchedApp.beta = shouldInstallBeta(matchedApp)
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
@@ -571,9 +699,9 @@ def performInstallation() {
 	}
 	
 	for (driverToInstall in driversToInstall) {
-		def location = getItemDownloadLocation(matchedDriver.value)
 		def matchedDriver = manifest.drivers.find { it.id == driverToInstall}
 		if (matchedDriver != null) {
+			def location = getItemDownloadLocation(matchedDriver)
 			setBackgroundStatusMessage("Installing ${matchedDriver.name}")
 			def id = installDriver(driverFiles[location])
 			if (id == null) {
@@ -581,7 +709,7 @@ def performInstallation() {
 				return rollback("Failed to install driver ${location}", false)
 			}
 			matchedDriver.heID = id
-			matchedDriver.beta = shouldInstallBeta(matchedDriver.value)
+			matchedDriver.beta = shouldInstallBeta(matchedDriver)
 		}
 	}
 	atomicState.backgroundActionInProgress = false
@@ -1193,6 +1321,12 @@ def performUpdateCheck() {
 	for (pkg in state.manifests) {
 		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
 		def manifest = getJSONFile(pkg.key)
+		if (shouldInstallBeta(manifest)) {
+			manifest = getJSONFile(getItemDownloadLocation(manifest))
+			manifest.beta = true
+		}
+		else
+			manifest.beta = false
 		
 		if (manifest == null) {
 			log.warn "Found a bad manifest ${pkg.key}"
@@ -1340,6 +1474,7 @@ def prefPkgUpdate() {
 		}
 		else {
 			logDebug "No updates available"
+			app.updateLabel("Hubitat Package Manager")
 			return complete("No Updates Available", "All packages are up to date, click Next to return to the Main Menu.")
 		}
 	}
@@ -1466,6 +1601,12 @@ def performUpdates(runInBackground) {
 	
 	for (pkg in pkgsToUpdate) {
 		def manifest = getJSONFile(pkg)
+		if (shouldInstallBeta(manifest)) {
+			manifest = getJSONFile(getItemDownloadLocation(manifest))
+			manifest.beta = true
+		}
+		else
+			manifest.beta = false
 		def installedManifest = state.manifests[pkg]
 		
 		downloadedManifests[pkg] = manifest
@@ -1785,6 +1926,8 @@ def performPackageMatchup() {
 				log.warn "Found a bad manifest ${pkg.location}"
 			else {
 				def pkgDetails = [
+					gitHubUrl: fileContents.gitHubUrl,
+					payPalUrl: fileContents.payPalUrl,
 					repository: repoName,
 					name: pkg.name,
 					location: pkg.location,
@@ -1853,7 +1996,10 @@ def prefPkgMatchUpComplete() {
 			}
 			if (state.manifests[match])
 				copyInstalledItemsToNewManifest(state.manifests[match], manifest)
-			
+			if (matchFromState.gitHubUrl != null)
+				manifest.gitHubUrl = matchFromState.gitHubUrl
+			if (matchFromState.payPalUrl != null)
+				manifest.payPalUrl = matchFromState.payPalUrl
 			state.manifests[match] = manifest
 			minimizeStoredManifests()
 		}
@@ -1887,11 +2033,23 @@ def prefPkgView() {
 	
 	def sortedPkgs = state.manifests.sort{ it-> it.value.packageName}
 	for (pkg in sortedPkgs) {
+		def prependBar = false
 		str += "<li><b>${pkg.value.packageName}</b>"
-		if (pkg.value.documentationLink != null)
-			str += " <a href='${pkg.value.documentationLink}' target='_blank'>Documentation</a>"
-		if (pkg.value.communityLink != null)
-			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a>"
+		if (pkg.value.documentationLink != null) {
+			str += " <a href='${pkg.value.documentationLink}' target='_blank'>Documentation</a> "
+			prependBar = true
+		}
+		if (pkg.value.communityLink != null) {
+			if (prependBar)
+				str += "|"
+			str += " <a href='${pkg.value.communityLink}' target='_blank'>Community Thread</a> "
+			prependBar = true
+		}
+		if (pkg.value.payPalUrl != null) {
+			if (prependBar)
+				str += "|"
+			str += " <a href='${pkg.value.payPalUrl}' target='_blank'>Donate</a>"
+		}
 		str += "<ul>"
 		for (app in pkg.value.apps?.sort { it -> it.name}) {
 			if (app.heID != null)
@@ -1935,6 +2093,13 @@ def buildErrorPage(title, message) {
 	}
 }
 
+def buildNotification(text) {
+	if (notifyIncludeHubName)
+		return "${location.name} - ${text}"
+	else
+		return text
+}
+
 def checkForUpdates() {
 	def allUpgradeCount = 0
 	def packagesWithLabels = performUpdateCheck()
@@ -1947,7 +2112,7 @@ def checkForUpdates() {
 		
 		if (notifyUpdatesAvailable && !state.updatesNotified) {
 			state.updatesNotified = true
-			notifyDevices*.deviceNotification("Hubitat Package updates are available")
+			notifyDevices*.deviceNotification(buildNotification("Hubitat Package updates are available"))
 		}
 		
 		if (autoUpdates) {
@@ -1961,7 +2126,7 @@ def checkForUpdates() {
 					def result = performUpdates(true)
 					if (result == true) {
 						if (notifyOnSuccess) {
-							notifyUpdateSuccessDevices*.deviceNotification("The packages were updated successfully")
+							notifyUpdateSuccessDevices*.deviceNotification(buildNotification("The packages were updated successfully"))
 							if (packagesWithUpdates.size() < allUpgradeCount)
 								app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 							else
@@ -1971,7 +2136,7 @@ def checkForUpdates() {
 					else {
 						log.error "Automatic update failure: ${result}"
 						if (notifyOnFailure) {
-							notifyUpdateFailureDevices*.deviceNotification("One or more packages failed to automatically update. Check the logs for more information")
+							notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
 							app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 						}
 					}
@@ -1979,7 +2144,7 @@ def checkForUpdates() {
 				catch (e) {
 					log.error "Automatic update failure: ${e}"
 					if (notifyOnFailure) {
-						notifyUpdateFailureDevices*.deviceNotification("One or more packages failed to automatically update. Check the logs for more information")
+						notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
 						app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 					}
 				}
@@ -2005,6 +2170,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgCategory")
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
+	app.removeSetting("pkgSearch")
 	packagesWithUpdates = [:]
 	updateDetails = [:]
 	packagesMatchingInstalledEntries = []
@@ -2239,7 +2405,7 @@ def verifyHEVersion(versionStr) {
 
 def newVersionAvailable(item, installedItem) {
 	def versionStr = includeBetas && item.betaVersion != null ? item?.betaVersion : item?.version
-	def installedVersionStr = installedItem.beta ? installedItem?.betaVersion : installedItem?.version
+	def installedVersionStr = installedItem.beta ? (installedItem?.betaVersion ?: installedItem?.version) : installedItem?.version
 	if (versionStr == null)
 		return false
 	versionStr = versionStr.replaceAll("[^\\d.]", "")
@@ -2724,7 +2890,10 @@ def installHPMManifest() {
 	}
 	if (state.manifests[listOfRepositories.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
-		login()
+		if (!login()) {
+			log.error "Failed to login to hub, please verify the username and password"
+			return false
+		}
 		def appsInstalled = getAppList()
 		
 		logDebug "Installing HPM Manifest"
@@ -2785,6 +2954,12 @@ def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
 	}
+	
+	if (srcManifest.payPalUrl != null)
+		destManifest.payPalUrl = srcManifest.payPalUrl
+		
+	if (srcManifest.gitHubUrl != null)
+		destManifest.gitHubUrl = srcManifest.gitHubUrl
 }
 
 def minimizeStoredManifests() {
