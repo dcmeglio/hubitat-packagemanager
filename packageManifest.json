@@ -4,7 +4,7 @@
 	"author": "Dominick Meglio",
 	"version": "1.4.0",
 	"dateReleased": "2020-05-03",
-	"releaseNotes": "Added an option to include the hub name in push notifications.",
+	"releaseNotes": "Added an option to include the hub name in push notifications. Added seaching capabilities to find new packages. Misc bug fixes.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"betaLocation": "https://raw.githubusercontent.com/dcmeglio/hubitat-packagemanager/1.4.0-dev/packageManifest.json",

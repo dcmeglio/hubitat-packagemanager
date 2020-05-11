@@ -1323,7 +1323,12 @@ def performUpdateCheck() {
 		def manifest = getJSONFile(pkg.key)
 		if (shouldInstallBeta(manifest)) {
 			manifest = getJSONFile(getItemDownloadLocation(manifest))
-			manifest.beta = true
+			if (manifest)
+				manifest.beta = true
+			else {
+				manifest = getJSONFile(pkg.key)
+				manifest.beta = false
+			}
 		}
 		else
 			manifest.beta = false
