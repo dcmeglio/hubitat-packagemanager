@@ -680,7 +680,7 @@ def performInstallation() {
 				return rollback("Failed to install app ${location}", false)
 			}
 			matchedApp.heID = id
-			matchedApp.beta = shouldInstallBeta(matchedApp.value)
+			matchedApp.beta = shouldInstallBeta(matchedApp)
 			if (matchedApp.oauth)
 				enableOAuth(matchedApp.heID)
 		}
@@ -709,7 +709,7 @@ def performInstallation() {
 				return rollback("Failed to install driver ${location}", false)
 			}
 			matchedDriver.heID = id
-			matchedDriver.beta = shouldInstallBeta(matchedDriver.value)
+			matchedDriver.beta = shouldInstallBeta(matchedDriver)
 		}
 	}
 	atomicState.backgroundActionInProgress = false
