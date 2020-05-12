@@ -547,6 +547,12 @@ def prefInstallVerify() {
 			}
 			else
 				paragraph "Click the next button to install your selections. This may take some time..."
+			
+			def primaryApp = manifest?.apps?.find { item -> item.primary == true }	
+	
+			if (primaryApp)
+				input "launchInstaller", "bool", defaultValue: true, title: "Configure the installed package after installation completes."
+			
 		}
 		section {
             paragraph "<hr>"
@@ -579,7 +585,12 @@ def prefInstall() {
 		}
 	}
 	else {
-		return complete("Installation complete", "The package was sucessfully installed, click Next to return to the Main Menu.")
+		def primaryApp = state.manifests[pkgInstall]?.apps?.find {it -> it.primary == true }
+		if (primaryApp == null || !launchInstaller)
+			return complete("Installation complete", "The package was sucessfully installed, click Next to return to the Main Menu.")
+		else
+			return complete("Installation complete", "The package was sucessfully installed, click Next to configure your new package.", false, primaryApp.heID)
+		
 	}
 }
 
@@ -2176,6 +2187,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
 	app.removeSetting("pkgSearch")
+	app.removeSetting("launchInstaller")
 	packagesWithUpdates = [:]
 	updateDetails = [:]
 	packagesMatchingInstalledEntries = []
@@ -2815,7 +2827,7 @@ def triggerError(title, message, runInBackground) {
 	errorMessage = message
 }
 
-def complete(title, message, done = false) {
+def complete(title, message, done = false, appID = null) {
 	installAction = null
 	completedActions = null
 	manifestForRollback = null
@@ -2835,6 +2847,8 @@ def complete(title, message, done = false) {
             paragraph "<b>${title}</b>"
 			paragraph message
 			showHideNextButton(true)
+			if (appID != null)
+				redirectToAppInstall(appID)
 		}
 	}
 }
@@ -3058,6 +3072,10 @@ def displayFooter(){
 def showHideNextButton(show) {
 	if(show) paragraph "<script>\$('button[name=\"_action_next\"]').show()</script>"  
 	else paragraph "<script>\$('button[name=\"_action_next\"]').hide()</script>"
+}
+
+def redirectToAppInstall(appID) {
+	paragraph "<script>\$('button[name=\"_action_next\"]').prop(\"onclick\", null).off(\"click\").click(function() { location.href = \"/installedapp/create/${appID}\";})</script>"
 }
 
 // Thanks to gavincampbell for the code below!
