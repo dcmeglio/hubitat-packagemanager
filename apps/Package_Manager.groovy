@@ -1701,7 +1701,7 @@ def performUpdates(runInBackground) {
 					}
 				}
 			}
-			if (pkg == listOfRepositories.hpm.location)
+			if (pkg == listOfRepositories.hpm?.location)
 				sendLocationEvent(name: "hpmVersion", value: manifest.version)
 		}
 		else {
@@ -2117,9 +2117,11 @@ def buildNotification(text) {
 }
 
 def checkForUpdates() {
+	updateRepositoryListing()
 	def allUpgradeCount = 0
 	def packagesWithLabels = performUpdateCheck()
 	def packagesWithUpdates = packagesWithLabels?.keySet() as List
+	
 	
 	if (packagesWithUpdates?.size() == 0)
 		app.updateLabel("Hubitat Package Manager")
