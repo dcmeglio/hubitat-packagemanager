@@ -542,11 +542,17 @@ def prefInstallVerify() {
 			if (manifest.licenseFile) {
 				def license = downloadFile(manifest.licenseFile)
 				paragraph "By clicking next you accept the below license agreement:"
-				paragraph "<textarea rows=20 cols=80 readonly='true'>${license}</textarea>"
+				paragraph "<textarea rows=20 class='mdl-textfield' readonly='true'>${license}</textarea>"
 				paragraph "Click next to continue. This make take some time..."
 			}
 			else
 				paragraph "Click the next button to install your selections. This may take some time..."
+			
+			def primaryApp = manifest?.apps?.find { item -> item.primary == true }	
+	
+			if (primaryApp)
+				input "launchInstaller", "bool", defaultValue: true, title: "Configure the installed package after installation completes."
+			
 		}
 		section {
             paragraph "<hr>"
@@ -579,7 +585,12 @@ def prefInstall() {
 		}
 	}
 	else {
-		return complete("Installation complete", "The package was sucessfully installed, click Next to return to the Main Menu.")
+		def primaryApp = state.manifests[pkgInstall]?.apps?.find {it -> it.primary == true }
+		if (primaryApp == null || !launchInstaller)
+			return complete("Installation complete", "The package was sucessfully installed, click Next to return to the Main Menu.")
+		else
+			return complete("Installation complete", "The package was sucessfully installed, click Next to configure your new package.", false, primaryApp.heID)
+		
 	}
 }
 
@@ -1507,7 +1518,7 @@ def prefPkgVerifyUpdates() {
 		
 		if (updateDetails[pkg].releaseNotes != null) {
 			updatesToInstall += "<br>"
-			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${updateDetails[pkg].releaseNotes}</textarea>"
+			updatesToInstall += "<textarea rows=6 class='mdl-textfield' readonly='true'>${updateDetails[pkg].releaseNotes}</textarea>"
 		}
 		
 		updatesToInstall += "</li>"
@@ -1690,7 +1701,7 @@ def performUpdates(runInBackground) {
 					}
 				}
 			}
-			if (pkg == listOfRepositories.hpm.location)
+			if (pkg == listOfRepositories.hpm?.location)
 				sendLocationEvent(name: "hpmVersion", value: manifest.version)
 		}
 		else {
@@ -2106,9 +2117,11 @@ def buildNotification(text) {
 }
 
 def checkForUpdates() {
+	updateRepositoryListing()
 	def allUpgradeCount = 0
 	def packagesWithLabels = performUpdateCheck()
 	def packagesWithUpdates = packagesWithLabels?.keySet() as List
+	
 	
 	if (packagesWithUpdates?.size() == 0)
 		app.updateLabel("Hubitat Package Manager")
@@ -2176,6 +2189,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
 	app.removeSetting("pkgSearch")
+	app.removeSetting("launchInstaller")
 	packagesWithUpdates = [:]
 	updateDetails = [:]
 	packagesMatchingInstalledEntries = []
@@ -2815,7 +2829,7 @@ def triggerError(title, message, runInBackground) {
 	errorMessage = message
 }
 
-def complete(title, message, done = false) {
+def complete(title, message, done = false, appID = null) {
 	installAction = null
 	completedActions = null
 	manifestForRollback = null
@@ -2835,6 +2849,8 @@ def complete(title, message, done = false) {
             paragraph "<b>${title}</b>"
 			paragraph message
 			showHideNextButton(true)
+			if (appID != null)
+				redirectToAppInstall(appID)
 		}
 	}
 }
@@ -3058,6 +3074,10 @@ def displayFooter(){
 def showHideNextButton(show) {
 	if(show) paragraph "<script>\$('button[name=\"_action_next\"]').show()</script>"  
 	else paragraph "<script>\$('button[name=\"_action_next\"]').hide()</script>"
+}
+
+def redirectToAppInstall(appID) {
+	paragraph "<script>\$('button[name=\"_action_next\"]').prop(\"onclick\", null).off(\"click\").click(function() { location.href = \"/installedapp/create/${appID}\";})</script>"
 }
 
 // Thanks to gavincampbell for the code below!
