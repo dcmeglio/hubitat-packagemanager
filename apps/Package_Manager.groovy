@@ -542,7 +542,7 @@ def prefInstallVerify() {
 			if (manifest.licenseFile) {
 				def license = downloadFile(manifest.licenseFile)
 				paragraph "By clicking next you accept the below license agreement:"
-				paragraph "<textarea rows=20 cols=80 readonly='true'>${license}</textarea>"
+				paragraph "<textarea rows=20 class='mdl-textfield' readonly='true'>${license}</textarea>"
 				paragraph "Click next to continue. This make take some time..."
 			}
 			else
@@ -1518,7 +1518,7 @@ def prefPkgVerifyUpdates() {
 		
 		if (updateDetails[pkg].releaseNotes != null) {
 			updatesToInstall += "<br>"
-			updatesToInstall += "<textarea rows=6 cols=80 readonly='true'>${updateDetails[pkg].releaseNotes}</textarea>"
+			updatesToInstall += "<textarea rows=6 class='mdl-textfield' readonly='true'>${updateDetails[pkg].releaseNotes}</textarea>"
 		}
 		
 		updatesToInstall += "</li>"
