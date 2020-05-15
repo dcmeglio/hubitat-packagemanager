@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.4.0
+ *  Hubitat Package Manager v1.4.1
  *
  *  Copyright 2020 Dominick Meglio
  *
