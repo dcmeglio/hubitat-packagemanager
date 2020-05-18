@@ -214,7 +214,7 @@ def prefSettings(params) {
 					input "includeBetas", "bool", title: "When updating, install pre-release versions. Note: Pre-releases often include more bugs and should be considered beta software"
 				}
 				section ("Package Updates") {
-					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true		
+					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "00:00", required: true		
 
 					input "notifyUpdatesAvailable", "bool", title: "Notify me when updates are available", submitOnChange: true
 					if (notifyUpdatesAvailable)
@@ -248,7 +248,7 @@ def prefSettings(params) {
 				{
 					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
 					if (!state.customRepo)
-					input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
+						input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
 					if (state.customRepo)
 						input "customRepo", "text", title: "Enter the URL of the repository's directory listing file", required: true
 				}
@@ -1925,6 +1925,7 @@ def performPackageMatchup() {
 				allInstalledDrivers.removeIf {it -> it.id == driver.heID}
 		}
 	}
+	updateRepositoryListing()
 	
 	def packagesToMatchAgainst = []
 	for (repo in installedRepositories) {
@@ -2944,6 +2945,11 @@ def updateRepositoryListing() {
 	logDebug "Refreshing repository list"
 	def oldListOfRepositories = listOfRepositories
 	listOfRepositories = getJSONFile(repositoryListing)
+	if (state.customRepositories) {
+		state.customRepositories.each { r -> 
+			listOfRepositories.repositories << [name: r.value, location: r.key]
+		}
+	}
 	if (installedRepositories == null) {
 		def repos = [] as List
 		listOfRepositories.repositories.each { it -> repos << it.location }
