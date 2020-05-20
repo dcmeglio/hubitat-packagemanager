@@ -2,12 +2,11 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "1.4.1",
-	"dateReleased": "2020-05-14",
-	"releaseNotes": "Fixed a bug related to auto-updates. Release notes and licenses now scale to display on mobile properly.",
+	"version": "1.4.2",
+	"dateReleased": "2020-05-20",
+	"releaseNotes": "Fixed an issue releated to a Hubitat 2.2.0 hotfix.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
-	"betaLocation": "https://raw.githubusercontent.com/dcmeglio/hubitat-packagemanager/1.4.0-dev/packageManifest.json",
 	"apps" : [
 		{
 			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",

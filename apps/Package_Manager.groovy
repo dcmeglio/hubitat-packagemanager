@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.4.1
+ *  Hubitat Package Manager v1.4.2
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -55,9 +55,9 @@ import groovy.transform.Field
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
-@Field static groovy.json.internal.LazyMap listOfRepositories = [:]
-@Field static groovy.json.internal.LazyMap completedActions = [:]
-@Field static groovy.json.internal.LazyMap manifestForRollback = null
+@Field static def listOfRepositories = [:]
+@Field static def completedActions = [:]
+@Field static def manifestForRollback = null
 
 
 @Field static String installAction = ""
@@ -66,9 +66,9 @@ import groovy.transform.Field
 @Field static String errorTitle = ""
 @Field static String errorMessage = ""
 @Field static boolean errorOccurred = false
-@Field static groovy.json.internal.LazyMap packagesWithUpdates = [:]
-@Field static groovy.json.internal.LazyMap optionalItemsToShow = [:]
-@Field static groovy.json.internal.LazyMap updateDetails = [:]
+@Field static def packagesWithUpdates = [:]
+@Field static def optionalItemsToShow = [:]
+@Field static def updateDetails = [:]
 
 
 @Field static List appsToInstallForModify = []
@@ -214,7 +214,7 @@ def prefSettings(params) {
 					input "includeBetas", "bool", title: "When updating, install pre-release versions. Note: Pre-releases often include more bugs and should be considered beta software"
 				}
 				section ("Package Updates") {
-					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "12:00AM", required: true		
+					input "updateCheckTime", "time", title: "Specify what time update checking should be performed", defaultValue: "00:00", required: true		
 
 					input "notifyUpdatesAvailable", "bool", title: "Notify me when updates are available", submitOnChange: true
 					if (notifyUpdatesAvailable)
@@ -248,7 +248,7 @@ def prefSettings(params) {
 				{
 					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
 					if (!state.customRepo)
-					input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
+						input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
 					if (state.customRepo)
 						input "customRepo", "text", title: "Enter the URL of the repository's directory listing file", required: true
 				}
@@ -404,7 +404,7 @@ def prefPkgInstallRepository() {
 	}
 	else {
 		installMode = "repository"
-		prefInstallChoices(null)
+		return prefInstallChoices(null)
 	}
 }
 
@@ -412,12 +412,7 @@ def prefInstallChoices(params) {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallChoices"
-	atomicState.backgroundActionInProgress = null
-	statusMessage = ""		
-	errorOccurred = null
-	errorTitle = null
-	errorMessage = null
-	
+
     return dynamicPage(name: "prefInstallChoices", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
         displayHeader()
 		section {
@@ -527,12 +522,20 @@ def performRepositoryRefresh() {
 	allPackages = allPackages.sort()
 	categories = categories.sort()
 	atomicState.backgroundActionInProgress = false
+	logDebug "Repositories refreshed"
 }
 
 def prefInstallVerify() {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallVerify"
+	
+		atomicState.backgroundActionInProgress = null
+	statusMessage = ""		
+	errorOccurred = null
+	errorTitle = null
+	errorMessage = null
+	
 	
     return dynamicPage(name: "prefInstallVerify", title: "", nextPage: "prefInstall", install: false, uninstall: false) {
         displayHeader()
@@ -1619,7 +1622,10 @@ def performUpdates(runInBackground) {
 		def manifest = getJSONFile(pkg)
 		if (shouldInstallBeta(manifest)) {
 			manifest = getJSONFile(getItemDownloadLocation(manifest))
-			manifest.beta = true
+			if (manifest)
+				manifest.beta = true
+			else 
+				manifest = getJSONFile(pkg)
 		}
 		else
 			manifest.beta = false
@@ -1925,6 +1931,7 @@ def performPackageMatchup() {
 				allInstalledDrivers.removeIf {it -> it.id == driver.heID}
 		}
 	}
+	updateRepositoryListing()
 	
 	def packagesToMatchAgainst = []
 	for (repo in installedRepositories) {
@@ -2944,6 +2951,11 @@ def updateRepositoryListing() {
 	logDebug "Refreshing repository list"
 	def oldListOfRepositories = listOfRepositories
 	listOfRepositories = getJSONFile(repositoryListing)
+	if (state.customRepositories) {
+		state.customRepositories.each { r -> 
+			listOfRepositories.repositories << [name: r.value, location: r.key]
+		}
+	}
 	if (installedRepositories == null) {
 		def repos = [] as List
 		listOfRepositories.repositories.each { it -> repos << it.location }
