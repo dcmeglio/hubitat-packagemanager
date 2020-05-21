@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.1.9",
 	"author": "Dominick Meglio",
-	"version": "1.4.2",
-	"dateReleased": "2020-05-20",
-	"releaseNotes": "Fixed an issue releated to a Hubitat 2.2.0 hotfix.",
+	"version": "1.4.3",
+	"dateReleased": "2020-05-21",
+	"releaseNotes": "Fixed an issue resulting from switching versioning systems for a package.\nFirst attempt at fixing 'all repositories are not enabled' bug",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
