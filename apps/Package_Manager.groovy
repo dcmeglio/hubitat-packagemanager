@@ -55,7 +55,6 @@ import groovy.transform.Field
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
-@Field static def listOfRepositories = [:]
 @Field static def completedActions = [:]
 @Field static def manifestForRollback = null
 
@@ -65,7 +64,7 @@ import groovy.transform.Field
 @Field static String statusMessage = ""
 @Field static String errorTitle = ""
 @Field static String errorMessage = ""
-@Field static boolean errorOccurred = false
+@Field static Boolean errorOccurred = false
 @Field static def packagesWithUpdates = [:]
 @Field static def optionalItemsToShow = [:]
 @Field static def updateDetails = [:]
@@ -94,28 +93,7 @@ def initialize() {
 		timeOfDayForUpdateChecks = timeToday(updateCheckTime, location.timeZone)
 	schedule("00 ${timeOfDayForUpdateChecks.minutes} ${timeOfDayForUpdateChecks.hours} ? * *", checkForUpdates)
 	
-	if (!state.manifestsHavePayPalAndGitHub) {
-		logDebug "Adding GitHub and PayPal URLs to manifests..."
-		for (repo in installedRepositories) {
-			def repoName = getRepoName(repo)
-			def fileContents = getJSONFile(repo)
-			if (!fileContents) {
-				log.warn "Error refreshing ${repoName}"
-				setBackgroundStatusMessage("Failed to refresh ${repoName}")
-				continue
-			}
-			for (pkg in fileContents.packages) {
-				if (state.manifests[pkg.location]) {
-					
-					if (fileContents.gitHubUrl != null)
-						state.manifests[pkg.location].gitHubUrl = fileContents.gitHubUrl
-					if (fileContents.payPalUrl != null)
-						state.manifests[pkg.location].payPalUrl = fileContents.payPalUrl
-				}
-			}
-		}
-		state.manifestsHavePayPalAndGitHub = true
-	}
+	performMigrations()
 }
 
 def uninstalled() {
@@ -138,13 +116,14 @@ def appButtonHandler(btn) {
 
 def prefOptions() {
 	state.remove("mainMenu")
+	
 	if (state.customRepo && customRepo != "" && customRepo != null) {
 		def repoListing = getJSONFile(customRepo)
 		if (repoListing == null) {
 			clearStateSettings(true)
 			return buildErrorPage("Error loading repository", "The repository file you specified could not be loaded.")
-		} else
-		{
+		} 
+		else {
 			installedRepositories << customRepo
 			if (state.customRepositories == null)
 				state.customRepositories = [:]
@@ -162,7 +141,7 @@ def prefOptions() {
 	if (installedRepositories == null) {
 		logDebug "No installed repositories, grabbing all"
 		def repos = [] as List
-		listOfRepositories.repositories.each { it -> repos << it.location }
+		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
 	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
@@ -185,7 +164,8 @@ def prefOptions() {
 def prefSettings(params) {
 	if (state.manifests == null)
 		state.manifests = [:]
-	
+
+	performMigrations()
 	updateRepositoryListing()
 
 	installHPMManifest()
@@ -240,7 +220,7 @@ def prefSettings(params) {
 						input "notifyIncludeHubName", "bool", title: "Include hub name in notifications", defaultValue: false
 				}
 				def reposToShow = [:]
-				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
+				state.repositoryListingJSON.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
 				if (state.customRepositories != null)
 					state.customRepositories.each { r -> reposToShow << ["${r.key}":r.value] }
 				reposToShow = reposToShow.sort { r -> r.value }
@@ -487,7 +467,7 @@ def prefInstallChoices(params) {
 }
 
 def getRepoName(location) {
-	return listOfRepositories.repositories.find { it -> it.location == location }?.name
+	return state.repositoryListingJSON.repositories.find { it -> it.location == location }?.name
 }
 
 def performRepositoryRefresh() {
@@ -1032,7 +1012,7 @@ def prefPkgRepairExecute() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Executing repair"
 		atomicState.backgroundActionInProgress = true
-		if (pkgRepair == listOfRepositories.hpm.location)
+		if (pkgRepair == state.repositoryListingJSON.hpm.location)
 			atomicState.hpmUpgraded = true
 		else
 			atomicState.hpmUpgraded = false
@@ -1333,91 +1313,99 @@ def performUpdateCheck() {
 	packagesWithUpdates = [:]
 
 	for (pkg in state.manifests) {
-		setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
-		def manifest = getJSONFile(pkg.key)
-		if (shouldInstallBeta(manifest)) {
-			manifest = getJSONFile(getItemDownloadLocation(manifest))
-			if (manifest)
-				manifest.beta = true
-			else {
-				manifest = getJSONFile(pkg.key)
+		try
+		{
+			setBackgroundStatusMessage("Checking for updates for ${state.manifests[pkg.key].packageName}")
+			def manifest = getJSONFile(pkg.key)
+			if (shouldInstallBeta(manifest)) {
+				manifest = getJSONFile(getItemDownloadLocation(manifest))
+				if (manifest)
+					manifest.beta = true
+				else {
+					manifest = getJSONFile(pkg.key)
+					manifest.beta = false
+				}
+			}
+			else
 				manifest.beta = false
+			
+			if (manifest == null) {
+				log.warn "Found a bad manifest ${pkg.key}"
+				continue
 			}
-		}
-		else
-			manifest.beta = false
-		
-		if (manifest == null) {
-			log.warn "Found a bad manifest ${pkg.key}"
-			continue
-		}
 
-		if (newVersionAvailable(manifest, state.manifests[pkg.key])) {
-			def version = includeBetas && manifest.betaVersion != null ? manifest.betaVersion : manifest.version
-			packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${version})"]
-			logDebug "Updates found for package ${pkg.key}"
-			addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
-		} 
-		else {
-			def appOrDriverNeedsUpdate = false
-			for (app in manifest.apps) {
-                try {
-				def installedApp = getAppById(state.manifests[pkg.key], app.id)
-				if (app?.version != null && installedApp?.version != null) {
-					if (newVersionAvailable(app, installedApp)) {
+			if (newVersionAvailable(manifest, state.manifests[pkg.key])) {
+				def version = includeBetas && manifest.betaVersion != null ? manifest.betaVersion : manifest.version
+				packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version ?: "N/A"} current: ${version})"]
+				logDebug "Updates found for package ${pkg.key}"
+				addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
+			} 
+			else {
+				def appOrDriverNeedsUpdate = false
+				for (app in manifest.apps) {
+					try {
+					def installedApp = getAppById(state.manifests[pkg.key], app.id)
+					if (app?.version != null && installedApp?.version != null) {
+						if (newVersionAvailable(app, installedApp)) {
+							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+							}
+							appOrDriverNeedsUpdate = true
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+						}
+					}
+					else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
 						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 						}
 						appOrDriverNeedsUpdate = true
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
 					}
-				}
-				else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
-					}
-					appOrDriverNeedsUpdate = true
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
-				}
-				else if (!installedApp && !app.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
-					}
-					appOrDriverNeedsUpdate = true
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
-				}
-                }
-                catch (any) { log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer. "}
-			}
-			for (driver in manifest.drivers) {
-        try {
-				def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
-				if (driver?.version != null && installedDriver?.version != null) {
-					if (newVersionAvailable(driver, installedDriver)) {
-						if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
-							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+					else if (!installedApp && !app.required) {
+						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 						}
 						appOrDriverNeedsUpdate = true
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
+						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
+					}
+					}
+					catch (any) { log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer. "}
+				}
+				for (driver in manifest.drivers) {
+					try {
+						def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
+						if (driver?.version != null && installedDriver?.version != null) {
+							if (newVersionAvailable(driver, installedDriver)) {
+								if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
+									packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+								}
+								appOrDriverNeedsUpdate = true
+								addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
+							}
+						}
+						else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
+							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
+							}
+							appOrDriverNeedsUpdate = true
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
+						}
+						else if (!installedDriver && !driver.required) {
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
+							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+							}
+							appOrDriverNeedsUpdate = true
+						}
+					}
+					catch (e) {
+						log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. ${e} Please notify developer."
 					}
 				}
-				else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
-					}
-					appOrDriverNeedsUpdate = true
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
-				}
-				else if (!installedDriver && !driver.required) {
-					addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
-					if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-						packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
-					}
-					appOrDriverNeedsUpdate = true
-				}
-                }
-                catch (any) {log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer."}
-			}
+			}	
+		}
+		catch (e) {
+			log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. ${e} Please notify developer."
 		}
 	}
 	packagesWithUpdates = packagesWithUpdates.sort { it -> it.value }
@@ -1560,7 +1548,7 @@ def prefPkgUpdatesComplete() {
 		logDebug "Performing update"
 		atomicState.hpmUpgraded = false
 		for (pkg in pkgsToUpdate) {
-			if (pkg == listOfRepositories.hpm.location) {
+			if (pkg == state.repositoryListingJSON.hpm.location) {
 				atomicState.hpmUpgraded = true
 				break
 			}
@@ -1707,7 +1695,7 @@ def performUpdates(runInBackground) {
 					}
 				}
 			}
-			if (pkg == listOfRepositories.hpm?.location)
+			if (pkg == state.repositoryListingJSON.hpm?.location)
 				sendLocationEvent(name: "hpmVersion", value: manifest.version)
 		}
 		else {
@@ -1723,6 +1711,9 @@ def performUpdates(runInBackground) {
 			initializeRollbackState("update")
 			
 			manifestForRollback = manifest
+			if (manifest.betaVersion && includeBetas)
+				manifest.beta = true
+			
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
@@ -1732,6 +1723,7 @@ def performUpdates(runInBackground) {
 						def sourceCode = getAppSource(app.heID)
 						setBackgroundStatusMessage("Upgrading ${app.name}")
 						if (upgradeApp(app.heID, appFiles[location])) {
+							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							if (app.oauth)
 								enableOAuth(app.heID)
@@ -1822,6 +1814,7 @@ def performUpdates(runInBackground) {
 			}
 			if (state.manifests[pkg] != null)
 				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
+
 			state.manifests[pkg] = manifest
 			minimizeStoredManifests()
 		}
@@ -2432,8 +2425,11 @@ def verifyHEVersion(versionStr) {
 def newVersionAvailable(item, installedItem) {
 	def versionStr = includeBetas && item.betaVersion != null ? item?.betaVersion : item?.version
 	def installedVersionStr = installedItem.beta ? (installedItem?.betaVersion ?: installedItem?.version) : installedItem?.version
+	
 	if (versionStr == null)
 		return false
+	if (installedVersionStr == null)
+		return true // Version scheme has changed, force an upgrade
 	versionStr = versionStr.replaceAll("[^\\d.]", "")
     installedVersionStr = installedVersionStr?.replaceAll("[^\\d.]", "")
 	def installedVersionParts = installedVersionStr?.split(/\./)
@@ -2916,7 +2912,7 @@ def installHPMManifest() {
 		createLocationVariable("hpmVersion")
 		sendLocationEvent(name: "hpmVersion", value: "0")
 	}
-	if (state.manifests[listOfRepositories.hpm.location] == null) {
+	if (state.manifests[state.repositoryListingJSON.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
 		if (!login()) {
 			log.error "Failed to login to hub, please verify the username and password"
@@ -2925,7 +2921,7 @@ def installHPMManifest() {
 		def appsInstalled = getAppList()
 		
 		logDebug "Installing HPM Manifest"
-		def manifest = getJSONFile(listOfRepositories.hpm.location)
+		def manifest = getJSONFile(state.repositoryListingJSON.hpm.location)
 		if (manifest == null) {
 			log.error "Error installing HPM manifest"
 			return false
@@ -2933,7 +2929,7 @@ def installHPMManifest() {
 		def appId = appsInstalled.find { i -> i.title == "Hubitat Package Manager" && i.namespace == "dcm.hpm"}?.id
 		if (appId != null) {
 			manifest.apps[0].heID = appId
-			state.manifests[listOfRepositories.hpm.location] = manifest
+			state.manifests[state.repositoryListingJSON.hpm.location] = manifest
 			minimizeStoredManifests()
 		}
 		else
@@ -2941,7 +2937,7 @@ def installHPMManifest() {
 	}
 	else if (location.hpmVersion != null && location.hpmVersion != "0") {
 		logDebug "Updating HPM version to ${location.hpmVersion} from previous upgrade"
-		state.manifests[listOfRepositories.hpm.location].version = location.hpmVersion
+		state.manifests[state.repositoryListingJSON.hpm.location].version = location.hpmVersion
 		sendLocationEvent(name: "hpmVersion", value: "0")
 	}
 	return true
@@ -2949,21 +2945,21 @@ def installHPMManifest() {
 
 def updateRepositoryListing() {
 	logDebug "Refreshing repository list"
-	def oldListOfRepositories = listOfRepositories
-	listOfRepositories = getJSONFile(repositoryListing)
+	def oldListOfRepositories = state.repositoryListingJSON.repositories
+	state.repositoryListingJSON = getJSONFile(repositoryListing)
 	if (state.customRepositories) {
 		state.customRepositories.each { r -> 
-			listOfRepositories.repositories << [name: r.value, location: r.key]
+			state.repositoryListingJSON.repositories << [name: r.value, location: r.key]
 		}
 	}
 	if (installedRepositories == null) {
 		def repos = [] as List
-		listOfRepositories.repositories.each { it -> repos << it.location }
+		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
 	else {
-		for (newRepo in listOfRepositories.repositories) {
-			if (oldListOfRepositories.size() > 0 && !oldListOfRepositories.repositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
+		for (newRepo in state.repositoryListingJSON.repositories) {
+			if (oldListOfRepositories.size() > 0 && !oldListOfRepositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
 				logDebug "Found new repository ${newRepo.location}"
 				installedRepositories << newRepo.location
 			}
@@ -2975,17 +2971,28 @@ def updateRepositoryListing() {
 def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 	def srcInstalledApps = srcManifest.apps?.findAll { it -> it.heID != null }
 	def srcInstalledDrivers = srcManifest.drivers?.findAll { it -> it.heID != null }
-	
+	def switchedToPackageVersion = false
+	if (srcManifest.version == null && destManifest.version != null)
+		switchedToPackageVersion = true
+		
 	for (app in srcInstalledApps) {
 		def destApp = destManifest.apps?.find { it -> it.id == app.id }
 		if (destApp && destApp.heID == null)
 			destApp.heID = app.heID
+		if (switchedToPackageVersion) {
+			destApp.remove("version")
+			destApp.remove("betaVersion")
+		}
 	}
 	
 	for (driver in srcInstalledDrivers) {
 		def destDriver = destManifest.drivers?.find { it -> it.id == driver.id }
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
+		if (switchedToPackageVersion) {
+			destDriver.remove("version")
+			destDriver.remove("betaVersion")
+		}
 	}
 	
 	if (srcManifest.payPalUrl != null)
@@ -3090,6 +3097,35 @@ def showHideNextButton(show) {
 
 def redirectToAppInstall(appID) {
 	paragraph "<script>\$('button[name=\"_action_next\"]').prop(\"onclick\", null).off(\"click\").click(function() { location.href = \"/installedapp/create/${appID}\";})</script>"
+}
+
+def performMigrations() {
+	if (!state.manifestsHavePayPalAndGitHub) {
+		logDebug "Adding GitHub and PayPal URLs to manifests..."
+		for (repo in installedRepositories) {
+			def repoName = getRepoName(repo)
+			def fileContents = getJSONFile(repo)
+			if (!fileContents) {
+				log.warn "Error refreshing ${repoName}"
+				setBackgroundStatusMessage("Failed to refresh ${repoName}")
+				continue
+			}
+			for (pkg in fileContents.packages) {
+				if (state.manifests[pkg.location]) {
+					
+					if (fileContents.gitHubUrl != null)
+						state.manifests[pkg.location].gitHubUrl = fileContents.gitHubUrl
+					if (fileContents.payPalUrl != null)
+						state.manifests[pkg.location].payPalUrl = fileContents.payPalUrl
+				}
+			}
+		}
+		state.manifestsHavePayPalAndGitHub = true
+	}
+	if (!state.repositoryListingJSON) {
+		logDebug "Storing repository listing in state"
+		state.repositoryListingJSON = getJSONFile(repositoryListing)
+	}
 }
 
 // Thanks to gavincampbell for the code below!
