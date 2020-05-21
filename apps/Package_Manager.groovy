@@ -55,7 +55,6 @@ import groovy.transform.Field
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
-@Field static def listOfRepositories = [:]
 @Field static def completedActions = [:]
 @Field static def manifestForRollback = null
 
@@ -94,28 +93,7 @@ def initialize() {
 		timeOfDayForUpdateChecks = timeToday(updateCheckTime, location.timeZone)
 	schedule("00 ${timeOfDayForUpdateChecks.minutes} ${timeOfDayForUpdateChecks.hours} ? * *", checkForUpdates)
 	
-	if (!state.manifestsHavePayPalAndGitHub) {
-		logDebug "Adding GitHub and PayPal URLs to manifests..."
-		for (repo in installedRepositories) {
-			def repoName = getRepoName(repo)
-			def fileContents = getJSONFile(repo)
-			if (!fileContents) {
-				log.warn "Error refreshing ${repoName}"
-				setBackgroundStatusMessage("Failed to refresh ${repoName}")
-				continue
-			}
-			for (pkg in fileContents.packages) {
-				if (state.manifests[pkg.location]) {
-					
-					if (fileContents.gitHubUrl != null)
-						state.manifests[pkg.location].gitHubUrl = fileContents.gitHubUrl
-					if (fileContents.payPalUrl != null)
-						state.manifests[pkg.location].payPalUrl = fileContents.payPalUrl
-				}
-			}
-		}
-		state.manifestsHavePayPalAndGitHub = true
-	}
+	performMigrations()
 }
 
 def uninstalled() {
@@ -138,13 +116,14 @@ def appButtonHandler(btn) {
 
 def prefOptions() {
 	state.remove("mainMenu")
+	performMigrations()
 	if (state.customRepo && customRepo != "" && customRepo != null) {
 		def repoListing = getJSONFile(customRepo)
 		if (repoListing == null) {
 			clearStateSettings(true)
 			return buildErrorPage("Error loading repository", "The repository file you specified could not be loaded.")
-		} else
-		{
+		} 
+		else {
 			installedRepositories << customRepo
 			if (state.customRepositories == null)
 				state.customRepositories = [:]
@@ -162,7 +141,7 @@ def prefOptions() {
 	if (installedRepositories == null) {
 		logDebug "No installed repositories, grabbing all"
 		def repos = [] as List
-		listOfRepositories.repositories.each { it -> repos << it.location }
+		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
 	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
@@ -240,7 +219,7 @@ def prefSettings(params) {
 						input "notifyIncludeHubName", "bool", title: "Include hub name in notifications", defaultValue: false
 				}
 				def reposToShow = [:]
-				listOfRepositories.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
+				state.repositoryListingJSON.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
 				if (state.customRepositories != null)
 					state.customRepositories.each { r -> reposToShow << ["${r.key}":r.value] }
 				reposToShow = reposToShow.sort { r -> r.value }
@@ -487,7 +466,7 @@ def prefInstallChoices(params) {
 }
 
 def getRepoName(location) {
-	return listOfRepositories.repositories.find { it -> it.location == location }?.name
+	return state.repositoryListingJSON.repositories.find { it -> it.location == location }?.name
 }
 
 def performRepositoryRefresh() {
@@ -1032,7 +1011,7 @@ def prefPkgRepairExecute() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Executing repair"
 		atomicState.backgroundActionInProgress = true
-		if (pkgRepair == listOfRepositories.hpm.location)
+		if (pkgRepair == state.repositoryListingJSON.hpm.location)
 			atomicState.hpmUpgraded = true
 		else
 			atomicState.hpmUpgraded = false
@@ -1560,7 +1539,7 @@ def prefPkgUpdatesComplete() {
 		logDebug "Performing update"
 		atomicState.hpmUpgraded = false
 		for (pkg in pkgsToUpdate) {
-			if (pkg == listOfRepositories.hpm.location) {
+			if (pkg == state.repositoryListingJSON.hpm.location) {
 				atomicState.hpmUpgraded = true
 				break
 			}
@@ -1707,7 +1686,7 @@ def performUpdates(runInBackground) {
 					}
 				}
 			}
-			if (pkg == listOfRepositories.hpm?.location)
+			if (pkg == state.repositoryListingJSON.hpm?.location)
 				sendLocationEvent(name: "hpmVersion", value: manifest.version)
 		}
 		else {
@@ -2916,7 +2895,7 @@ def installHPMManifest() {
 		createLocationVariable("hpmVersion")
 		sendLocationEvent(name: "hpmVersion", value: "0")
 	}
-	if (state.manifests[listOfRepositories.hpm.location] == null) {
+	if (state.manifests[state.repositoryListingJSON.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
 		if (!login()) {
 			log.error "Failed to login to hub, please verify the username and password"
@@ -2925,7 +2904,7 @@ def installHPMManifest() {
 		def appsInstalled = getAppList()
 		
 		logDebug "Installing HPM Manifest"
-		def manifest = getJSONFile(listOfRepositories.hpm.location)
+		def manifest = getJSONFile(state.repositoryListingJSON.hpm.location)
 		if (manifest == null) {
 			log.error "Error installing HPM manifest"
 			return false
@@ -2933,7 +2912,7 @@ def installHPMManifest() {
 		def appId = appsInstalled.find { i -> i.title == "Hubitat Package Manager" && i.namespace == "dcm.hpm"}?.id
 		if (appId != null) {
 			manifest.apps[0].heID = appId
-			state.manifests[listOfRepositories.hpm.location] = manifest
+			state.manifests[state.repositoryListingJSON.hpm.location] = manifest
 			minimizeStoredManifests()
 		}
 		else
@@ -2941,7 +2920,7 @@ def installHPMManifest() {
 	}
 	else if (location.hpmVersion != null && location.hpmVersion != "0") {
 		logDebug "Updating HPM version to ${location.hpmVersion} from previous upgrade"
-		state.manifests[listOfRepositories.hpm.location].version = location.hpmVersion
+		state.manifests[state.repositoryListingJSON.hpm.location].version = location.hpmVersion
 		sendLocationEvent(name: "hpmVersion", value: "0")
 	}
 	return true
@@ -2949,21 +2928,21 @@ def installHPMManifest() {
 
 def updateRepositoryListing() {
 	logDebug "Refreshing repository list"
-	def oldListOfRepositories = listOfRepositories
-	listOfRepositories = getJSONFile(repositoryListing)
+	def oldListOfRepositories = state.repositoryListingJSON.repositories
+	state.repositoryListingJSON = getJSONFile(repositoryListing)
 	if (state.customRepositories) {
 		state.customRepositories.each { r -> 
-			listOfRepositories.repositories << [name: r.value, location: r.key]
+			state.repositoryListingJSON.repositories << [name: r.value, location: r.key]
 		}
 	}
 	if (installedRepositories == null) {
 		def repos = [] as List
-		listOfRepositories.repositories.each { it -> repos << it.location }
+		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
 	else {
-		for (newRepo in listOfRepositories.repositories) {
-			if (oldListOfRepositories.size() > 0 && !oldListOfRepositories.repositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
+		for (newRepo in state.repositoryListingJSON.repositories) {
+			if (oldListOfRepositories.size() > 0 && !oldListOfRepositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
 				logDebug "Found new repository ${newRepo.location}"
 				installedRepositories << newRepo.location
 			}
@@ -3090,6 +3069,35 @@ def showHideNextButton(show) {
 
 def redirectToAppInstall(appID) {
 	paragraph "<script>\$('button[name=\"_action_next\"]').prop(\"onclick\", null).off(\"click\").click(function() { location.href = \"/installedapp/create/${appID}\";})</script>"
+}
+
+def performMigrations() {
+	if (!state.manifestsHavePayPalAndGitHub) {
+		logDebug "Adding GitHub and PayPal URLs to manifests..."
+		for (repo in installedRepositories) {
+			def repoName = getRepoName(repo)
+			def fileContents = getJSONFile(repo)
+			if (!fileContents) {
+				log.warn "Error refreshing ${repoName}"
+				setBackgroundStatusMessage("Failed to refresh ${repoName}")
+				continue
+			}
+			for (pkg in fileContents.packages) {
+				if (state.manifests[pkg.location]) {
+					
+					if (fileContents.gitHubUrl != null)
+						state.manifests[pkg.location].gitHubUrl = fileContents.gitHubUrl
+					if (fileContents.payPalUrl != null)
+						state.manifests[pkg.location].payPalUrl = fileContents.payPalUrl
+				}
+			}
+		}
+		state.manifestsHavePayPalAndGitHub = true
+	}
+	if (!state.repositoryListingJSON) {
+		logDebug "Storing repository listing in state"
+		state.repositoryListingJSON = getJSONFile(repositoryListing)
+	}
 }
 
 // Thanks to gavincampbell for the code below!
