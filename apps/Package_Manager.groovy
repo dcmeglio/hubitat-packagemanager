@@ -116,7 +116,7 @@ def appButtonHandler(btn) {
 
 def prefOptions() {
 	state.remove("mainMenu")
-	performMigrations()
+	
 	if (state.customRepo && customRepo != "" && customRepo != null) {
 		def repoListing = getJSONFile(customRepo)
 		if (repoListing == null) {
@@ -164,7 +164,8 @@ def prefOptions() {
 def prefSettings(params) {
 	if (state.manifests == null)
 		state.manifests = [:]
-	
+
+	performMigrations()
 	updateRepositoryListing()
 
 	installHPMManifest()
@@ -1335,7 +1336,7 @@ def performUpdateCheck() {
 
 			if (newVersionAvailable(manifest, state.manifests[pkg.key])) {
 				def version = includeBetas && manifest.betaVersion != null ? manifest.betaVersion : manifest.version
-				packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version} current: ${version})"]
+				packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version ?: "N/A"} current: ${version})"]
 				logDebug "Updates found for package ${pkg.key}"
 				addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
 			} 
@@ -1710,6 +1711,9 @@ def performUpdates(runInBackground) {
 			initializeRollbackState("update")
 			
 			manifestForRollback = manifest
+			if (manifest.betaVersion && includeBetas)
+				manifest.beta = true
+			
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
@@ -1719,6 +1723,7 @@ def performUpdates(runInBackground) {
 						def sourceCode = getAppSource(app.heID)
 						setBackgroundStatusMessage("Upgrading ${app.name}")
 						if (upgradeApp(app.heID, appFiles[location])) {
+							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							if (app.oauth)
 								enableOAuth(app.heID)
@@ -1809,6 +1814,7 @@ def performUpdates(runInBackground) {
 			}
 			if (state.manifests[pkg] != null)
 				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
+
 			state.manifests[pkg] = manifest
 			minimizeStoredManifests()
 		}
@@ -2419,6 +2425,7 @@ def verifyHEVersion(versionStr) {
 def newVersionAvailable(item, installedItem) {
 	def versionStr = includeBetas && item.betaVersion != null ? item?.betaVersion : item?.version
 	def installedVersionStr = installedItem.beta ? (installedItem?.betaVersion ?: installedItem?.version) : installedItem?.version
+	
 	if (versionStr == null)
 		return false
 	if (installedVersionStr == null)
@@ -2964,17 +2971,28 @@ def updateRepositoryListing() {
 def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
 	def srcInstalledApps = srcManifest.apps?.findAll { it -> it.heID != null }
 	def srcInstalledDrivers = srcManifest.drivers?.findAll { it -> it.heID != null }
-	
+	def switchedToPackageVersion = false
+	if (srcManifest.version == null && destManifest.version != null)
+		switchedToPackageVersion = true
+		
 	for (app in srcInstalledApps) {
 		def destApp = destManifest.apps?.find { it -> it.id == app.id }
 		if (destApp && destApp.heID == null)
 			destApp.heID = app.heID
+		if (switchedToPackageVersion) {
+			destApp.remove("version")
+			destApp.remove("betaVersion")
+		}
 	}
 	
 	for (driver in srcInstalledDrivers) {
 		def destDriver = destManifest.drivers?.find { it -> it.id == driver.id }
 		if (destDriver && destDriver.heID == null)
 			destDriver.heID = driver.heID
+		if (switchedToPackageVersion) {
+			destDriver.remove("version")
+			destDriver.remove("betaVersion")
+		}
 	}
 	
 	if (srcManifest.payPalUrl != null)
