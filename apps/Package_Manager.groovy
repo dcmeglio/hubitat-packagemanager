@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.4.3
+ *  Hubitat Package Manager v1.4.4
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -3100,6 +3100,10 @@ def redirectToAppInstall(appID) {
 }
 
 def performMigrations() {
+	if (!state.repositoryListingJSON) {
+		logDebug "Storing repository listing in state"
+		state.repositoryListingJSON = getJSONFile(repositoryListing)
+	}
 	if (!state.manifestsHavePayPalAndGitHub) {
 		logDebug "Adding GitHub and PayPal URLs to manifests..."
 		for (repo in installedRepositories) {
@@ -3121,10 +3125,6 @@ def performMigrations() {
 			}
 		}
 		state.manifestsHavePayPalAndGitHub = true
-	}
-	if (!state.repositoryListingJSON) {
-		logDebug "Storing repository listing in state"
-		state.repositoryListingJSON = getJSONFile(repositoryListing)
 	}
 }
 
