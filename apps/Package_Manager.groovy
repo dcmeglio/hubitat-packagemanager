@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.4.4
+ *  Hubitat Package Manager v1.5.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -409,7 +409,7 @@ def prefInstallChoices(params) {
 					for (pkg in allPackages) {
 						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
 							continue
-						if (pkg.category == pkgCategory) {
+						if (pkg.category == pkgCategory || pkg.secondaryCategory == pkgCategory ) {
 							if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
 							if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
 						}
@@ -492,11 +492,14 @@ def performRepositoryRefresh() {
 				name: pkg.name,
 				description: pkg.description,
 				location: pkg.location,
-				category: pkg.category
+				category: pkg.category,
+				secondaryCategory: pkg.secondaryCategory
 			]
 			allPackages << pkgDetails
 			if (!categories.contains(pkgDetails.category))
 				categories << pkgDetails.category
+			if (!categories.contains(pkgDetails.secondaryCategory))
+				categories << pkgDetails.secondaryCategory
 		}
 	}
 	allPackages = allPackages.sort()
