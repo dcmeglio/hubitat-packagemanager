@@ -120,12 +120,37 @@ The repository file is another JSON file that can be created using the [Hubitat 
 #### Categories
 To prevent the list of packages from getting unwieldy, they are divided into categories. The following categories are currently available:
 
-* Control - lighting/motion/presence/locks/etc.
-* Convenience - A general category that's mainly a catch all.
-* Integrations - devices/applications/services 
-* Notifications - speakers/TTS/music/etc.
-* Security - presence/camera/sensors/etc.
-* Utility - Data/Button controllers/IR control/etc.
+| Category             | Description                       |
+|----------------------|-----------------------------------|
+| Automations & Groups | Rule engines, device groups, etc. |
+| Cleaning Devices | Vacuums, Mops, and other cleaning equipment |
+| Climate Control | Thermostats, fan control, comfort management |
+| Dashboards | Dashboard tiles and other dashboard enhancements |
+| Doors & Windows | Contact sensors and garage doors |
+| Energy Monitoring | Solar panel monitors, home energy monitors, and electrical panel monitors |
+| Health & Fitness | Wellness checkers, sleep trackers, etc. |
+| IR & RF | Infrared and Radio Frequency devices |
+| Lights, Switches & Buttons | Lighting control, switch management, and buttond devices |
+| Locks | Lock devices |
+| Misc. Devices | Devices that don't fit nicely into another category |
+| Monitoring | Apps to monitor devices (battery monitors), hub monitoring, etc. |
+| Motion Control | Motion control management |
+| Multimedia | Speaker and AV systems |
+| Multi Sensors | Generic multi-sensors |
+| Notifications | TTS & other notifications |
+| Pets & Animals | Pet feeders, pet doors, litter boxes, etc. |
+| Pools & Spas | Pool and spa controllers, chemical management, etc. |
+| Presence & Location | Presence and location monitoring tools |
+| Repeaters & Extenders | Zigbee and Z-Wave repeaters and extenders |
+| Safety & Security | Security systems, fire monitoring, CO monitoring, etc. |
+| Temperature & Humidity | Temperature and humidity sensors |
+| Timers | Various timer applications |
+| Tools & Utilities | Generic tools and utilities |
+| Vehicles & Transportation | Car and vehicle integrations |
+| Voice Assistants | 3rd party voice control |
+| Water, Valves, and Irrigation | Leak sensors, shutoff valves, and irrigation controllers |
+| Weather | Weather stations, weather alert systems, etc. |
+| Window Coverings | Blinds, Curtains, Shades |
 
 If you feel the need to add additional categories, that's fine but I'd request you submit a Pull Request and update this README file. The idea is, if every developer uses the same set of categories we will be in a much better place where the list of categories doesn't get too large and unruly.
 
