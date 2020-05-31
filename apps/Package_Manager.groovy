@@ -51,6 +51,8 @@ preferences {
 }
 
 import groovy.transform.Field
+import java.util.regex.Matcher
+
 @Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
@@ -110,6 +112,9 @@ def appButtonHandler(btn) {
 			state.back = true
 		case "btnAddRepo":
 			state.customRepo = true
+			break
+		case ~/^btnDeleteRepo(\d+)/:
+			deleteCustomRepository(Matcher.lastMatcher[0][1].toInteger())
 			break
 	}
 }
@@ -237,6 +242,16 @@ def prefSettings(params) {
 				section ("Repositories")
 				{
 					input "installedRepositories", "enum", title: "Available repositories", options: reposToShow, multiple: true, required: true
+
+					if (state.customRepositories && state.customRepositories.size()) {
+						def i = 0
+						for (customRepo in state.customRepositories.keySet()) {
+							paragraph "${state.customRepositories[customRepo]} - ${customRepo}", width: 10
+							input "btnDeleteRepo${i}", "button", title: "Remove", width: 2
+							i++
+						}
+					}
+
 					if (!state.customRepo)
 						input "btnAddRepo", "button", title: "Add a Custom Repository", submitOnChange: false
 					if (state.customRepo)
@@ -3063,6 +3078,19 @@ def getItemVersion(item) {
 	if (item.beta)
 		return item.betaVersion + "beta"
 	return item.version
+}
+
+def deleteCustomRepository(customRepositoryIdx) {
+	def i = 0
+	for (key in state.customRepositories.keySet()) {
+		if (i == customRepositoryIdx) {
+			state.customRepositories.remove(key)
+			state.repositoryListingJSON.repositories.remove(key)
+			installedRepositories.removeAll { it -> it == key}
+			app.updateSetting("installedRepositories", installedRepositories as List)
+			return
+		}
+	}
 }
 
 def logDebug(msg) {
