@@ -144,8 +144,15 @@ def prefOptions() {
 		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
 		app.updateSetting("installedRepositories", repos)
 	}
+
 	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
         displayHeader()
+		if (state.newRepoMessage != "") {
+			section {
+				paragraph state.newRepoMessage
+				state.newRepoMessage = ""
+			}
+		}
 		section {
 			paragraph "What would you like to do?"
 			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
@@ -162,11 +169,14 @@ def prefOptions() {
 }
 
 def prefSettings(params) {
+	state.newRepoMessage = ""
 	if (state.manifests == null)
 		state.manifests = [:]
 
 	performMigrations()
-	updateRepositoryListing()
+	if (updateRepositoryListing()?.size() > 0) {
+		state.newRepoMessage = "<b>One or more new repositories have been added. You may want to do a Match Up to ensure all of your packages are detected.</b>"
+	}
 
 	installHPMManifest()
 	if (app.getInstallationState() == "COMPLETE" && params?.force != true) 
@@ -409,7 +419,7 @@ def prefInstallChoices(params) {
 					for (pkg in allPackages) {
 						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
 							continue
-						if (pkg.category == pkgCategory || pkg.secondaryCategory == pkgCategory ) {
+						if (pkg.category == pkgCategory || pkg.secondaryCategory == pkgCategory) {
 							if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
 							if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
 						}
@@ -2947,6 +2957,7 @@ def installHPMManifest() {
 }
 
 def updateRepositoryListing() {
+	def addedRepositories = []
 	logDebug "Refreshing repository list"
 	def oldListOfRepositories = state.repositoryListingJSON.repositories
 	state.repositoryListingJSON = getJSONFile(repositoryListing)
@@ -2963,12 +2974,14 @@ def updateRepositoryListing() {
 	else {
 		for (newRepo in state.repositoryListingJSON.repositories) {
 			if (oldListOfRepositories.size() > 0 && !oldListOfRepositories.find { it -> it.location == newRepo.location} && !installedRepositories.contains(newRepo.location)) {
-				logDebug "Found new repository ${newRepo.location}"
+				log.info "A new repository was added, ${newRepo.location}"
 				installedRepositories << newRepo.location
+				addedRepositories << newRepo.location
 			}
 		}
 		app.updateSetting("installedRepositories", installedRepositories)
 	}
+	return addedRepositories
 }
 
 def copyInstalledItemsToNewManifest(srcManifest, destManifest) {
