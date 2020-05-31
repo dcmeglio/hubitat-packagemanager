@@ -508,7 +508,7 @@ def performRepositoryRefresh() {
 			allPackages << pkgDetails
 			if (!categories.contains(pkgDetails.category))
 				categories << pkgDetails.category
-			if (!categories.contains(pkgDetails.secondaryCategory))
+			if (pkgDetails.secondaryCategory != null && !categories.contains(pkgDetails.secondaryCategory))
 				categories << pkgDetails.secondaryCategory
 		}
 	}
@@ -2082,11 +2082,11 @@ def prefPkgView() {
 		str += "<ul>"
 		for (app in pkg.value.apps?.sort { it -> it.name}) {
 			if (app.heID != null)
-				str += "<li>${app.name} v${app.version ?: pkg.value.version} (app)</li>"
+				str += "<li>${app.name} v${getItemVersion(app) ?: getItemVersion(pkg.value)} (app)</li>"
 		}
 		for (driver in pkg.value.drivers?.sort { it -> it.name}) {
 			if (driver.heID != null)
-				str += "<li>${driver.name} v${driver.version ?: pkg.value.version} (driver)</li>"
+				str += "<li>${driver.name} v${getItemVersion(driver) ?: getItemVersion(pkg.value)} (driver)</li>"
 		}
 		str += "</ul></li>"
 	}
@@ -3053,6 +3053,14 @@ def getItemDownloadLocation(item) {
 	if (item.betaLocation != null && includeBetas)
 		return item.betaLocation
 	return item.location
+}
+
+def getItemVersion(item) {
+	if (item == null)
+		return null
+	if (item.beta)
+		return item.betaVersion + "beta"
+	return item.version
 }
 
 def logDebug(msg) {
