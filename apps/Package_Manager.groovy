@@ -668,7 +668,7 @@ def performInstallation() {
 		def id = installApp(appFiles[location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install app ${location}", false)
+			return rollback("Failed to install app ${location}. Please notify the package developer.", false)
 		}
 		requiredApp.value.heID = id
 		requiredApp.value.beta = shouldInstallBeta(requiredApp.value)
@@ -684,7 +684,7 @@ def performInstallation() {
 			def id = installApp(appFiles[location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install app ${location}", false)
+				return rollback("Failed to install app ${location}. Please notify the package developer.", false)
 			}
 			matchedApp.heID = id
 			matchedApp.beta = shouldInstallBeta(matchedApp)
@@ -699,7 +699,7 @@ def performInstallation() {
 		def id = installDriver(driverFiles[location])
 		if (id == null) {
 			state.manifests.remove(pkgInstall)
-			return rollback("Failed to install driver ${location}", false)
+			return rollback("Failed to install driver ${location}. Please notify the package developer.", false)
 		}
 		requiredDriver.value.heID = id
 		requiredDriver.value.beta = shouldInstallBeta(requiredDriver.value)
@@ -713,7 +713,7 @@ def performInstallation() {
 			def id = installDriver(driverFiles[location])
 			if (id == null) {
 				state.manifests.remove(pkgInstall)
-				return rollback("Failed to install driver ${location}", false)
+				return rollback("Failed to install driver ${location}. Please notify the package developer.", false)
 			}
 			matchedDriver.heID = id
 			matchedDriver.beta = shouldInstallBeta(matchedDriver)
@@ -957,7 +957,7 @@ def performModify() {
 				enableOAuth(app.heID)
 		}
 		else
-			return rollback("Failed to install app ${location}", false)
+			return rollback("Failed to install app ${location}. Please notify the package developer.", false)
 	}
 	for (appToUninstall in appsToUninstallForModify) {
 		def app = getAppById(manifest, appToUninstall)
@@ -980,7 +980,7 @@ def performModify() {
 			driver.heID = id
 		}
 		else
-			return rollback("Failed to install driver ${location}, it may be in use.", false)
+			return rollback("Failed to install driver ${location}. Please notify the package developer.", false)
 		
 	}
 	for (driverToUninstall in driversToUninstallForModify) {
@@ -1131,7 +1131,7 @@ def performRepair() {
 						enableOAuth(app.heID)
 				}
 				else
-					return rollback("Failed to upgrade app ${location}", runInBackground)
+					return rollback("Failed to upgrade app ${location}.  Please notify the package developer.", runInBackground)
 			}
 			else if (app.required) {
 				def location = getItemDownloadLocation(app)
@@ -1144,7 +1144,7 @@ def performRepair() {
 						enableOAuth(app.heID)
 				}
 				else
-					return rollback("Failed to install app ${location}", runInBackground)
+					return rollback("Failed to install app ${location}.  Please notify the package developer.", runInBackground)
 			}
 		}
 		
@@ -1160,7 +1160,7 @@ def performRepair() {
 					completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 				}
 				else
-					return rollback("Failed to upgrade driver ${location}", runInBackground)
+					return rollback("Failed to upgrade driver ${location}.  Please notify the package developer.", runInBackground)
 			}
 			else if (driver.required) {
 				def location = getItemDownloadLocation(driver)
@@ -1171,7 +1171,7 @@ def performRepair() {
 					driver.beta = shouldInstallBeta(driver)
 				}
 				else
-					return rollback("Failed to install driver ${location}", runInBackground)
+					return rollback("Failed to install driver ${location}.  Please notify the package developer.", runInBackground)
 			}
 		}
 		if (state.manifests[pkgRepair] != null)
@@ -1343,7 +1343,7 @@ def performUpdateCheck() {
 				manifest.beta = false
 			
 			if (manifest == null) {
-				log.warn "Found a bad manifest ${pkg.key}"
+				log.warn "Found a bad manifest ${pkg.key}, please notify the package developer."
 				continue
 			}
 
@@ -1357,32 +1357,34 @@ def performUpdateCheck() {
 				def appOrDriverNeedsUpdate = false
 				for (app in manifest.apps) {
 					try {
-					def installedApp = getAppById(state.manifests[pkg.key], app.id)
-					if (app?.version != null && installedApp?.version != null) {
-						if (newVersionAvailable(app, installedApp)) {
+						def installedApp = getAppById(state.manifests[pkg.key], app.id)
+						if (app?.version != null && installedApp?.version != null) {
+							if (newVersionAvailable(app, installedApp)) {
+								if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+									packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+								}
+								appOrDriverNeedsUpdate = true
+								addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+							}
+						}
+						else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
 							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
+								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 							}
 							appOrDriverNeedsUpdate = true
-							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
+						}
+						else if (!installedApp && !app.required) {
+							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
+								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
+							}
+							appOrDriverNeedsUpdate = true
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
 						}
 					}
-					else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
-						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
-						}
-						appOrDriverNeedsUpdate = true
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
+					catch (any) { 
+						log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. Please notify the package developer."
 					}
-					else if (!installedApp && !app.required) {
-						if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
-							packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
-						}
-						appOrDriverNeedsUpdate = true
-						addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
-					}
-					}
-					catch (any) { log.warn "Bad manifest for ${state.manifests[pkg.key].packageName}.  Please notify developer. "}
 				}
 				for (driver in manifest.drivers) {
 					try {
@@ -1412,13 +1414,13 @@ def performUpdateCheck() {
 						}
 					}
 					catch (e) {
-						log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. ${e} Please notify developer."
+						log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. ${e} Please notify the package developer."
 					}
 				}
 			}	
 		}
 		catch (e) {
-			log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. ${e} Please notify developer."
+			log.error "Bad manifest for ${state.manifests[pkg.key].packageName}. ${e} Please notify the package developer."
 		}
 	}
 	packagesWithUpdates = packagesWithUpdates.sort { it -> it.value }
@@ -1952,7 +1954,7 @@ def performPackageMatchup() {
 		for (pkg in fileContents.packages) {
 			def manifestContents = getJSONFile(pkg.location)
 			if (manifestContents == null)
-				log.warn "Found a bad manifest ${pkg.location}"
+				log.error "Found a bad manifest ${pkg.location}. Please notify the package developer."
 			else {
 				def pkgDetails = [
 					gitHubUrl: fileContents.gitHubUrl,
