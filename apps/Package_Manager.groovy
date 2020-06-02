@@ -335,23 +335,23 @@ def prefInstallRepositorySearchResults() {
 		def searchResults = []
 		for (repo in result.data.repositories) {
 			for (packageItem in repo.packages) {
-				if (!state.manifests[packageItem.location]) {
-					packageItem << [author: repo.author]
-					searchResults << packageItem
-				}
+				packageItem << [author: repo.author, installed: state.manifests[packageItem.location] != null]
+				searchResults << packageItem
 			}
 		}
 		searchResults = searchResults.sort { it -> it.name }
 		return dynamicPage(name: "prefInstallRepositorySearch", title: "", nextPage: "prefInstallRepositorySearchResults", install: false, uninstall: false) {
 			displayHeader()
+			
 			section {
 				paragraph "<b>Search Results for ${pkgSearch}</b>"
+				addCss()
 			}	
 			section {
 				if (searchResults.size() > 0) {
 					def i = 0
 					for (searchResult in searchResults) {
-						href(name: "prefPkgInstallPackage${i}", title: "${searchResult.name} by ${searchResult.author}", required: false, page: "prefInstallChoices", description: searchResult.description, params: [location: searchResult.location]) 
+						renderPackageButton(searchResult,i)
 						i++
 					}
 				}
@@ -422,6 +422,7 @@ def prefInstallChoices(params) {
     return dynamicPage(name: "prefInstallChoices", title: "", nextPage: "prefInstallVerify", install: false, uninstall: false) {
         displayHeader()
 		section {
+			addCss()
             paragraph "<b>Install a Package from a Repository</b>"
 			if (installMode == "repository" && params == null)
 			{
@@ -433,8 +434,12 @@ def prefInstallChoices(params) {
 					
 					def matchingPackages = []
 					for (pkg in allPackages) {
-						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
-							continue
+						if (state.manifests.containsKey(pkg.location)) {
+							if (pkgFilterInstalled)
+								continue
+							else
+								pkg.installed = true
+						}
 						if (pkg.category == pkgCategory || pkg.secondaryCategory == pkgCategory) {
 							matchingPackages << pkg
 						}
@@ -447,8 +452,8 @@ def prefInstallChoices(params) {
 
 					if (sortedMatchingPackages.size() > 0) {
 						def i = 0
-						for (pkg in sortedMatchingPackages) {
-							href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description, params: [location: pkg.location]) 
+						for (pkg in sortedMatchingPackages) {						
+							renderPackageButton(pkg,i)
 							i++
 						}
 					}
@@ -531,7 +536,11 @@ def performRepositoryRefresh() {
 				description: pkg.description,
 				location: pkg.location,
 				category: pkg.category,
-				secondaryCategory: pkg.secondaryCategory
+				secondaryCategory: pkg.secondaryCategory,
+				lan: pkg.lan,
+				cloud: pkg.cloud,
+				zwave: pkg.zwave,
+				zigbee: pkg.zigbee
 			]
 			allPackages << pkgDetails
 			if (!categories.contains(pkgDetails.category))
@@ -3243,6 +3252,44 @@ def displayFooter(){
 		paragraph getFormat("line")
 		paragraph "<div style='color:#1A77C9;text-align:center'>Hubitat Package Manager<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
 	}       
+}
+
+def renderPackageButton(pkg, i) {
+	def badges = ""
+	if (pkg.zwave)
+		badges += '<i class="material-icons he-zwave" style="display: block; text-align: right" title="Z-Wave"></i>'
+	if (pkg.zigbee)
+		badges += '<i class="material-icons he-zigbee" style="display: block; text-align: right" title="Zigbee"></i>'
+	if (pkg.cloud)
+		badges += '<i class="material-icons material-icons-outlined" style="display: block; text-align: right" title="Cloud">cloud</i>'
+	if (pkg.lan)
+		badges += '<i class="material-icons material-icons-outlined" style="display: block; text-align: right" title="LAN">wifi</i>'
+	href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description + " " + badges, params: [location: pkg.location]) 
+	if (pkg.installed)
+		disableHrefButton("prefPkgInstallPackage${i}")
+	else
+		styleHrefButton("prefPkgInstallPackage${i}")
+}
+
+def addCss() {
+	paragraph """<style>
+		.hpmNoClick::before { content: ''; font-family: 'Material Icons'; transform: none !important }
+		.hpmClick::before { content: '' !important; font-family: 'Material Icons'; transform: none !important }
+		
+	</style>"""
+}
+
+def disableHrefButton(name) {
+	paragraph """<script>
+		\$('button[name^="_action_href_${name}|"]').parent().css({'pointer-events': 'none'}); 
+		\$('button[name^="_action_href_${name}|"]').addClass('hpmNoClick');
+	</script>"""
+}
+
+def styleHrefButton(name) {
+	paragraph """<script>
+		\$('button[name^="_action_href_${name}|"]').addClass('hpmClick');
+	</script>"""
 }
 
 def showHideNextButton(show) {
