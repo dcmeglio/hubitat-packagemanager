@@ -322,7 +322,7 @@ def prefInstallRepositorySearchResults() {
 			"variables": [
 				"searchQuery": pkgSearch
 			],
-			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location}}}'
+			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location, zwave, zigbee, lan, cloud}}}'
 		]
 	]
 	
