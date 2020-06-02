@@ -462,7 +462,7 @@ def prefInstallChoices(params) {
                 return buildErrorPage("Package Already Installed", "${pkgInstall} has already been installed. If you would like to look for upgrades, use the Update function.")
             }
 
-            if (!verifyHEVersion(manifest.minimumHEVersion)) {
+            if (manifest.minimumHEVersion != null && !verifyHEVersion(manifest.minimumHEVersion)) {
                 return buildErrorPage("Unsupported Hubitat Firmware", "Your Hubitat Elevation firmware is not supported. You are running ${location.hub.firmwareVersionString} and this package requires  at least ${manifest.minimumHEVersion}. Please upgrade your firmware to continue installing.")
             } 
             else {
@@ -1325,16 +1325,16 @@ def performUninstall() {
 	atomicState.backgroundActionInProgress = false
 }	
 
-def addUpdateDetails(pkgId, pkgName, releaseNotes, updateType, item) {
+def addUpdateDetails(pkgId, pkgName, releaseNotes, updateType, item, forceProduction = false) {
 	if (updateDetails[pkgId] == null)
-		updateDetails[pkgId] = [name: null, releaseNotes: null, items: []]
+		updateDetails[pkgId] = [name: null, releaseNotes: null, items: [], forceProduction: null]
 	if (pkgName != null)
 		updateDetails[pkgId].name = pkgName
 	if (releaseNotes != null)
 		updateDetails[pkgId].releaseNotes = releaseNotes
-	updateDetails[pkgId].items << [type: updateType,  id: item?.id, name: item?.name]
+	updateDetails[pkgId].items << [type: updateType,  id: item?.id, name: item?.name, forceProduction: forceProduction]
 	
-	logDebug "Updates found ${updateType} for ${pkgId} -> ${item?.name}"
+	logDebug "Updates found ${updateType} for ${pkgId} -> ${item?.name} (force production: ${forceProduction})"
 }
 // Update packages pathway
 def performUpdateCheck() {
@@ -1362,11 +1362,12 @@ def performUpdateCheck() {
 				continue
 			}
 
-			if (newVersionAvailable(manifest, state.manifests[pkg.key])) {
+			def newVersionResult = newVersionAvailable(manifest, state.manifests[pkg.key])
+			if (newVersionResult.newVersion) {
 				def version = includeBetas && manifest.betaVersion != null ? manifest.betaVersion : manifest.version
 				packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (installed: ${state.manifests[pkg.key].version ?: "N/A"} current: ${version})"]
 				logDebug "Updates found for package ${pkg.key}"
-				addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null)
+				addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "package", null, newVersionResult.forceProduction)
 			} 
 			else {
 				def appOrDriverNeedsUpdate = false
@@ -1374,12 +1375,13 @@ def performUpdateCheck() {
 					try {
 						def installedApp = getAppById(state.manifests[pkg.key], app.id)
 						if (app?.version != null && installedApp?.version != null) {
-							if (newVersionAvailable(app, installedApp)) {
+							newVersionResult = newVersionAvailable(app, installedApp)
+							if (newVersionResult.newVersion) {
 								if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 									packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
 								}
 								appOrDriverNeedsUpdate = true
-								addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app)
+								addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificapp", app, newVersionResult.forceProduction)
 							}
 						}
 						else if ((!installedApp || (!installedApp.required && installedApp.heID == null)) && app.required) {
@@ -1387,14 +1389,14 @@ def performUpdateCheck() {
 								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 							}
 							appOrDriverNeedsUpdate = true
-							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app)
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqapp", app, false)
 						}
 						else if (!installedApp && !app.required) {
 							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 							}
 							appOrDriverNeedsUpdate = true
-							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app)
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optapp", app, false)
 						}
 					}
 					catch (any) { 
@@ -1405,12 +1407,13 @@ def performUpdateCheck() {
 					try {
 						def installedDriver = getDriverById(state.manifests[pkg.key], driver.id)
 						if (driver?.version != null && installedDriver?.version != null) {
-							if (newVersionAvailable(driver, installedDriver)) {
+							newVersionResult = newVersionAvailable(driver, installedDriver)
+							if (newVersionResult.newVersion) {
 								if (!appOrDriverNeedsUpdate) {// Only add a package to the list once
 									packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new version)"]
 								}
 								appOrDriverNeedsUpdate = true
-								addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver)
+								addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "specificdriver", driver, newVersionResult.forceProduction)
 							}
 						}
 						else if ((!installedDriver || (!installedDriver.required && installedDriver.heID == null)) && driver.required) {
@@ -1418,10 +1421,10 @@ def performUpdateCheck() {
 								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (driver or app has a new requirement)"]
 							}
 							appOrDriverNeedsUpdate = true
-							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver)
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "reqdriver", driver, false)
 						}
 						else if (!installedDriver && !driver.required) {
-							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver)
+							addUpdateDetails(pkg.key, manifest.packageName, manifest.releaseNotes, "optdriver", driver, false)
 							if (!appOrDriverNeedsUpdate) { // Only add a package to the list once
 								packagesWithUpdates << ["${pkg.key}": "${state.manifests[pkg.key].packageName} (new optional app or driver is available)"]
 							}
@@ -1627,6 +1630,18 @@ def optionalItemsOnly(pkg) {
 	return true
 }
 
+def forceProduction(pkg, id) {
+	def pkgUpdateDetails = updateDetails[pkg]
+
+	for (updateItem in pkgUpdateDetails.items) {
+		if (updateItem.type == "package")
+			return updateItem.forceProduction
+		else if ((updateItem.type == "specificapp" || updateItem.type == "specificdriver") && updateItem.id == id)
+			return updateItem.forceProduction
+	}
+	return false
+}
+
 def performUpdates(runInBackground) {
 	if (!login())
 		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", runInBackground)
@@ -1654,7 +1669,11 @@ def performUpdates(runInBackground) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
-						def location = getItemDownloadLocation(app)
+						def location
+						if (!forceProduction(pkg, app.id))
+							location = getItemDownloadLocation(app)
+						else
+							location = app.location
 						setBackgroundStatusMessage("Downloading ${app.name}")
 						def fileContents = downloadFile(location)
 						if (fileContents == null) {
@@ -1664,7 +1683,11 @@ def performUpdates(runInBackground) {
 					}
 				}
 				else if (app.required && !optionalItemsOnly(pkg)) {
-					def location = getItemDownloadLocation(app)
+					def location
+					if (!forceProduction(pkg, app.id))
+						location = getItemDownloadLocation(app)
+					else
+						location = app.location
 					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
 					def fileContents = downloadFile(location)
 					if (fileContents == null) {
@@ -1673,7 +1696,11 @@ def performUpdates(runInBackground) {
 					appFiles[location] = fileContents
 				}
 				else {
-					def location = getItemDownloadLocation(app)
+					def location
+					if (!forceProduction(pkg, app.id))
+						location = getItemDownloadLocation(app)
+					else
+						location = app.location
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
@@ -1692,7 +1719,11 @@ def performUpdates(runInBackground) {
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					if (shouldUpgrade(pkg, driver.id)) {
-						def location = getItemDownloadLocation(driver)
+						def location
+						if (!forceProduction(pkg, driver.id))
+							location = getItemDownloadLocation(driver)
+						else
+							location = driver.location
 						setBackgroundStatusMessage("Downloading ${driver.name}")
 						def fileContents = downloadFile(location)
 						if (fileContents == null) {
@@ -1702,7 +1733,11 @@ def performUpdates(runInBackground) {
 					}
 				}
 				else if (driver.required && !optionalItemsOnly(pkg)) {
-					def location = getItemDownloadLocation(driver)
+					def location
+					if (!forceProduction(pkg, driver.id))
+						location = getItemDownloadLocation(driver)
+					else
+						location = driver.location
 					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
 					def fileContents = downloadFile(location)
 					if (fileContents == null) {
@@ -1711,7 +1746,11 @@ def performUpdates(runInBackground) {
 					driverFiles[location] = fileContents
 				}
 				else {
-					def location = getItemDownloadLocation(driver)
+					def location
+					if (!forceProduction(pkg, driver.id))
+						location = getItemDownloadLocation(driver)
+					else
+						location = driver.location
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split(':')
 						if (splitParts[0] == pkg && splitParts[1] == driver.id) {
@@ -1747,9 +1786,13 @@ def performUpdates(runInBackground) {
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
-						def location = getItemDownloadLocation(app)
+						def location
+						if (!forceProduction(pkg, app.id))
+							location = getItemDownloadLocation(app)
+						else
+							location = app.location
 						app.heID = getAppById(installedManifest, app.id).heID
-						app.beta = shouldInstallBeta(app)
+						app.beta = shouldInstallBeta(app) && !forceProduction(pkg, app.id)
 						def sourceCode = getAppSource(app.heID)
 						setBackgroundStatusMessage("Upgrading ${app.name}")
 						if (upgradeApp(app.heID, appFiles[location])) {
@@ -1763,12 +1806,16 @@ def performUpdates(runInBackground) {
 					}
 				}
 				else if (app.required && !optionalItemsOnly(pkg)) {
-					def location = getItemDownloadLocation(app)
+					def location
+					if (!forceProduction(pkg, app.id))
+						location = getItemDownloadLocation(app)
+					else
+						location = app.location
 					setBackgroundStatusMessage("Installing ${app.name}")
 					def id = installApp(appFiles[location])
 					if (id != null) {
 						app.heID = id
-						app.beta = shouldInstallBeta(app)
+						app.beta = shouldInstallBeta(app) && !forceProduction(pkg, app.id)
 						if (app.oauth)
 							enableOAuth(app.heID)
 					}
@@ -1776,7 +1823,11 @@ def performUpdates(runInBackground) {
 						return rollback("Failed to install app ${location}", runInBackground)
 				}
 				else {
-					def location = getItemDownloadLocation(app)
+					def location
+					if (!forceProduction(pkg, app.id))
+						location = getItemDownloadLocation(app)
+					else
+						location = app.location
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
@@ -1785,7 +1836,7 @@ def performUpdates(runInBackground) {
 								def id = installApp(appFiles[location])
 								if (id != null) {
 									app.heID = id
-									app.beta = shouldInstallBeta(app)
+									app.beta = shouldInstallBeta(app) && !forceProduction(pkg, app.id)
 									if (app.oauth)
 										enableOAuth(app.heID)
 								}
@@ -1800,9 +1851,13 @@ def performUpdates(runInBackground) {
 			for (driver in manifest.drivers) {
 				if (isDriverInstalled(installedManifest,driver.id)) {
 					if (shouldUpgrade(pkg, driver.id)) {
-						def location = getItemDownloadLocation(driver)
+						def location
+						if (!forceProduction(pkg, driver.id))
+							location = getItemDownloadLocation(driver)
+						else
+							location = driver.location
 						driver.heID = getDriverById(installedManifest, driver.id).heID
-						driver.beta = shouldInstallBeta(driver)
+						driver.beta = shouldInstallBeta(driver) && !forceProduction(pkg, driver.id)
 						def sourceCode = getDriverSource(driver.heID)
 						setBackgroundStatusMessage("Upgrading ${driver.name}")
 						if (upgradeDriver(driver.heID, driverFiles[location])) {
@@ -1813,18 +1868,26 @@ def performUpdates(runInBackground) {
 					}
 				}
 				else if (driver.required && !optionalItemsOnly(pkg)) {
-					def location = getItemDownloadLocation(driver)
+					def location
+					if (!forceProduction(pkg, driver.id))
+						location = getItemDownloadLocation(driver)
+					else
+						location = driver.location
 					setBackgroundStatusMessage("Installing ${driver.name}")
 					def id = installDriver(driverFiles[location])
 					if (id != null) {
 						driver.heID = id
-						driver.beta = shouldInstallBeta(driver)
+						driver.beta = shouldInstallBeta(driver) && !forceProduction(pkg, driver.id)
 					}
 					else
 						return rollback("Failed to install driver ${location}", runInBackground)
 				}
 				else {
-					def location = getItemDownloadLocation(driver)
+					def location
+					if (!forceProduction(pkg, driver.id))
+						location = getItemDownloadLocation(driver)
+					else
+						location = driver.location
 					for (optItem in pkgsToAddOpt) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
@@ -1833,7 +1896,7 @@ def performUpdates(runInBackground) {
 								def id = installApp(appFiles[location])
 								if (id != null) {
 									driver.heID = id
-									driver.beta = shouldInstallBeta(driver)
+									driver.beta = shouldInstallBeta(driver) && !forceProduction(pkg, driver.id)
 								}
 								else
 									return rollback("Failed to install driver ${location}", runInBackground)
@@ -2452,32 +2515,57 @@ def verifyHEVersion(versionStr) {
 	return true
 }
 
+def compareVersions(oldVersion, newVersion) {
+	newVersion = newVersion.replaceAll("[^\\d.]", "")
+    oldVersion = oldVersion?.replaceAll("[^\\d.]", "")	
+	
+	if (newVersion == oldVersion)
+		return 0
+
+	def oldVersionParts = oldVersion?.split(/\./)
+	def newVersionParts = newVersion.split(/\./)
+	
+	for (def i = 0; i < newVersionParts.size(); i++) {
+		if (i >= oldVersionParts.size()) {
+			return 1
+		}
+		def oldPart = oldVersionParts[i].toInteger()
+		def newPart = newVersionParts[i].toInteger()
+		if (oldPart < newPart) {
+			return 1
+		}
+	}
+	return -1
+}
+
 def newVersionAvailable(item, installedItem) {
+	def result = [newVersion: false, forceProduction: false]
 	def versionStr = includeBetas && item.betaVersion != null ? item?.betaVersion : item?.version
 	def installedVersionStr = installedItem.beta ? (installedItem?.betaVersion ?: installedItem?.version) : installedItem?.version
 	
 	if (versionStr == null)
-		return false
-	if (installedVersionStr == null)
-		return true // Version scheme has changed, force an upgrade
-	versionStr = versionStr.replaceAll("[^\\d.]", "")
-    installedVersionStr = installedVersionStr?.replaceAll("[^\\d.]", "")
-	def installedVersionParts = installedVersionStr?.split(/\./)
-	def newVersionParts = versionStr.split(/\./)
-
-	for (def i = 0; i < newVersionParts.size(); i++) {
-		if (i >= installedVersionParts.size()) {
-			return true
-		}
-		def installedPart = installedVersionParts[i].toInteger()
-		def newPart = newVersionParts[i].toInteger()
-		if (installedPart < newPart) {
-			return true
-		}
+		return result
+	if (installedVersionStr == null) {
+		result.newVersion = true
+		return result // Version scheme has changed, force an upgrade
 	}
-	if (versionStr == installedVersionStr && installedItem?.beta && versionStr == item?.version)
-		return true
-	return false
+
+	if (compareVersions(versionStr, item?.version) != -1) {
+		result.forceProduction = true
+		versionStr = item?.version
+	}
+
+	if (compareVersions(installedVersionStr, versionStr) > 0) {
+		result.newVersion = true
+		return result
+	}
+
+	if (versionStr == installedVersionStr && installedItem?.beta && versionStr == item?.version) {
+		result.forceProduction = true
+		result.newVersion = true
+		return result
+	}
+	return result
 }
 
 def login() {
