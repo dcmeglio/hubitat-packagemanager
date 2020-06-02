@@ -352,6 +352,7 @@ def prefInstallRepositorySearchResults() {
 					def i = 0
 					for (searchResult in searchResults) {
 						href(name: "prefPkgInstallPackage${i}", title: "${searchResult.name} by ${searchResult.author}", required: false, page: "prefInstallChoices", description: searchResult.description, params: [location: searchResult.location]) 
+						i++
 					}
 				}
 				else
@@ -422,7 +423,7 @@ def prefInstallChoices(params) {
         displayHeader()
 		section {
             paragraph "<b>Install a Package from a Repository</b>"
-			if (installMode == "repository")
+			if (installMode == "repository" && params == null)
 			{
 				input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
 			
@@ -430,22 +431,34 @@ def prefInstallChoices(params) {
 					input "sortBy", "bool", title: "Sort packages by Author?", description: "Sorting", defaultValue: false, submitOnChange: true
 					input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
 					
-					def matchingPackages = [:]
+					def matchingPackages = []
 					for (pkg in allPackages) {
 						if (pkgFilterInstalled && state.manifests.containsKey(pkg.location))
 							continue
 						if (pkg.category == pkgCategory || pkg.secondaryCategory == pkgCategory) {
-							if(sortBy) matchingPackages << ["${pkg.location}":"(${pkg.author}) - ${pkg.name} - ${pkg.description}"]
-							if(!sortBy) matchingPackages << ["${pkg.location}":"${pkg.name} - (${pkg.author}) - ${pkg.description}"]
+							matchingPackages << pkg
 						}
 					}
-					def sortedMatchingPackages = matchingPackages.sort { a, b -> a.value <=> b.value }
-					input "pkgInstall", "enum", title: "Choose a package", options: sortedMatchingPackages, required: true, submitOnChange: true
-				}
+					def sortedMatchingPackages
+					if (sortBy == false)
+					 	sortedMatchingPackages = matchingPackages.sort { x -> x.name }
+					else
+						sortedMatchingPackages = matchingPackages.sort { y -> y.author }
+
+					if (sortedMatchingPackages.size() > 0) {
+						def i = 0
+						for (pkg in sortedMatchingPackages) {
+							href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description, params: [location: pkg.location]) 
+							i++
+						}
+					}
+					else
+						paragraph "No matching packages were found. Please choose a different category."
+					}
 			}
 		}
         
-		if (installMode == "search") { 
+		if (installMode == "search" || (installMode == "repository" && params != null)) { 
 			pkgInstall = params.location
 			app.updateSetting("pkgInstall", params.location)
 		}
