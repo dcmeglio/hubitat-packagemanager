@@ -23,7 +23,8 @@
 			"location": "https://raw.githubusercontent.com/dcmeglio/.../file.groovy",
 			"betaLocation": "https://raw.githubusercontent.com/dcmeglio/.../betafile.groovy",
 			"required": true,
-			"oauth": false
+			"oauth": false,
+			"primary": true
 		}
 	],
 	"drivers" : [
