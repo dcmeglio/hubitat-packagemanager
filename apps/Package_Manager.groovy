@@ -322,7 +322,7 @@ def prefInstallRepositorySearchResults() {
 			"variables": [
 				"searchQuery": pkgSearch
 			],
-			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location, zwave, zigbee, lan, cloud}}}'
+			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location, tags}}}'
 		]
 	]
 	
@@ -440,7 +440,7 @@ def prefInstallChoices(params) {
 							else
 								pkg.installed = true
 						}
-						if (pkg.category == pkgCategory || pkg.secondaryCategory == pkgCategory) {
+						if (pkg.category == pkgCategory) {
 							matchingPackages << pkg
 						}
 					}
@@ -536,17 +536,11 @@ def performRepositoryRefresh() {
 				description: pkg.description,
 				location: pkg.location,
 				category: pkg.category,
-				secondaryCategory: pkg.secondaryCategory,
-				lan: pkg.lan,
-				cloud: pkg.cloud,
-				zwave: pkg.zwave,
-				zigbee: pkg.zigbee
+				tags: pkg.tags
 			]
 			allPackages << pkgDetails
 			if (!categories.contains(pkgDetails.category))
 				categories << pkgDetails.category
-			if (pkgDetails.secondaryCategory != null && !categories.contains(pkgDetails.secondaryCategory))
-				categories << pkgDetails.secondaryCategory
 		}
 	}
 	allPackages = allPackages.sort()
@@ -3254,15 +3248,19 @@ def displayFooter(){
 	}       
 }
 
+def hasTag(pkg, tag) {
+	return pkg.tags.find {it -> it == tag} != null
+}
+
 def renderPackageButton(pkg, i) {
 	def badges = ""
-	if (pkg.zwave)
+	if (hasTag(pkg, "zwave"))
 		badges += '<i class="material-icons he-zwave" style="display: block; text-align: right" title="Z-Wave"></i>'
-	if (pkg.zigbee)
+	if (hasTag(pkg, "zigbee"))
 		badges += '<i class="material-icons he-zigbee" style="display: block; text-align: right" title="Zigbee"></i>'
-	if (pkg.cloud)
+	if (hasTag(pkg, "cloud"))
 		badges += '<i class="material-icons material-icons-outlined" style="display: block; text-align: right" title="Cloud">cloud</i>'
-	if (pkg.lan)
+	if (hasTag(pkg, "lan"))
 		badges += '<i class="material-icons material-icons-outlined" style="display: block; text-align: right" title="LAN">wifi</i>'
 	href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description + " " + badges, params: [location: pkg.location]) 
 	if (pkg.installed)
