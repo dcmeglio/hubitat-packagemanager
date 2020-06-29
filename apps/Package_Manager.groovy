@@ -78,6 +78,8 @@ import java.util.regex.Matcher
 @Field static List driversToUninstallForModify = []
 @Field static List packagesMatchingInstalledEntries = []
 
+@Field static List iconTags = ["zwave", "zigbee", "cloud", "lan"]
+
 def installed() {
     initialize()
 }
@@ -274,7 +276,7 @@ def prefPkgInstall() {
             paragraph "<b>Install a Package</b>"
 			paragraph "How would you like to install this package?"
 			href(name: "prefInstallRepositorySearch", title: "Search by Keywords", required: false, page: "prefInstallRepositorySearch", description: "Search for packages by searching for keywords. <b>This will only include the standard repositories, <i>not</i> custom repositories.</b>")
-			href(name: "prefPkgInstallRepository", title: "Browse by Categories", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository browsing by categories. <b>This will include both the standard repositories and any custom repositories you have setup.</b>")
+			href(name: "prefPkgInstallRepository", title: "Browse by Tags", required: false, page: "prefPkgInstallRepository", description: "Choose a package from a repository browsing by tags. <b>This will include both the standard repositories and any custom repositories you have setup.</b>")
 			href(name: "prefPkgInstallUrl", title: "From a URL", required: false, page: "prefPkgInstallUrl", description: "Install a package using a URL to a specific package. This is an advanced feature, only use it if you know how to find a package's manifest manually.")
 			
 		}
@@ -414,6 +416,24 @@ def prefPkgInstallRepository() {
 	}
 }
 
+def renderTags(pkgList) {
+	def tags = []
+
+	for (pkg in pkgList) {
+		if (!tags.contains(pkg.category))
+			tags << pkg.category
+		for (tag in pkg.tags) {
+			if (!tags.contains(tag))
+				tags << tag
+		}
+	}
+	tagsd = tags.sort()
+	input "pkgTags", "enum", title: "Choose tag(s)", options: tags, submitOnChange: true, multiple: true
+}
+
+def renderSortBy() {
+	input "pkgSortBy", "enum", title: "Sort By", options: ["Author", "Name"], submitOnChange: true, defaultValue: "Name"
+}
 def prefInstallChoices(params) {
 	if (state.mainMenu)
 		return prefOptions()
@@ -426,26 +446,22 @@ def prefInstallChoices(params) {
             paragraph "<b>Install a Package from a Repository</b>"
 			if (installMode == "repository" && params == null)
 			{
-				input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
-			
-				if(pkgCategory) {
-					input "sortBy", "bool", title: "Sort packages by Author?", description: "Sorting", defaultValue: false, submitOnChange: true
-					input "pkgFilterInstalled", "bool", title: "Filter packages that are already installed?", submitOnChange: true
+				//input "pkgCategory", "enum", title: "Choose a category", options: categories, required: true, submitOnChange: true
+				renderTags(allPackages)
+				if(pkgTags) {
+					renderSortBy()
 					
 					def matchingPackages = []
 					for (pkg in allPackages) {
 						if (state.manifests.containsKey(pkg.location)) {
-							if (pkgFilterInstalled)
-								continue
-							else
-								pkg.installed = true
+							pkg.installed = true
 						}
-						if (pkg.category == pkgCategory) {
+						if (pkgTags.contains(pkg.category) || pkg.tags.find { pkgTags.contains(it)}) {
 							matchingPackages << pkg
 						}
 					}
 					def sortedMatchingPackages
-					if (sortBy == false)
+					if (pkgSortBy == "Name")
 					 	sortedMatchingPackages = matchingPackages.sort { x -> x.name }
 					else
 						sortedMatchingPackages = matchingPackages.sort { y -> y.author }
@@ -2295,6 +2311,7 @@ def clearStateSettings(clearProgress) {
 	app.removeSetting("pkgsToUpdate")
 	app.removeSetting("pkgsToAddOpt")
 	app.removeSetting("pkgCategory")
+	app.removeSetting("pkgTags")
 	app.removeSetting("pkgMatches")
 	app.removeSetting("pkgUpToDate")
 	app.removeSetting("pkgSearch")
@@ -3224,19 +3241,13 @@ def getDriverList() {
 	return result
 }
 
-def getImage(type) {					// Modified from @Stephack Code
-    def loc = "<img src=https://raw.githubusercontent.com/bptworld/Hubitat/master/resources/images/"
-    if(type == "Blank") return "${loc}blank.png height=40 width=5}>"
-    //if(type == "logo") return "${loc}logo.png height=60>"
-}
-
 def getFormat(type, myText=""){			// Modified from @Stephack Code   
     if(type == "line") return "<hr style='background-color:#1A77C9; height: 1px; border: 0;'>"
     if(type == "title") return "<h2 style='color:#1A77C9;font-weight: bold'>${myText}</h2>"
 }
 
 def displayHeader() {
-    section (getFormat("title", "${getImage("Blank")}" + " Hubitat Package Manager")) {
+    section (getFormat("title", "Hubitat Package Manager")) {
 		paragraph getFormat("line")
 	}
 }
@@ -3252,17 +3263,35 @@ def hasTag(pkg, tag) {
 	return pkg.tags.find {it -> it == tag} != null
 }
 
+def nonIconTagsHtml(pkg) {
+	def tagsHtml = '<div style="display:table-cell;width: 100%;">'
+	def i = 0
+	for (tag in pkg.tags) {
+		if (i >= 5) {
+			tagsHtml += "... "
+			break
+		}
+		if (!iconTags.contains(tag)) {
+			tagsHtml += "<span class='hpmPill'>${tag}</span>"
+			i++
+		}
+	}
+	if (tagsHtml != "")
+		return tagsHtml + "</div>"
+	return ""
+}
+
 def renderPackageButton(pkg, i) {
 	def badges = ""
-	if (hasTag(pkg, "zwave"))
-		badges += '<i class="material-icons he-zwave" style="display: block; text-align: right" title="Z-Wave"></i>'
-	if (hasTag(pkg, "zigbee"))
-		badges += '<i class="material-icons he-zigbee" style="display: block; text-align: right" title="Zigbee"></i>'
-	if (hasTag(pkg, "cloud"))
-		badges += '<i class="material-icons material-icons-outlined" style="display: block; text-align: right" title="Cloud">cloud</i>'
-	if (hasTag(pkg, "lan"))
-		badges += '<i class="material-icons material-icons-outlined" style="display: block; text-align: right" title="LAN">wifi</i>'
-	href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description + " " + badges, params: [location: pkg.location]) 
+	if (hasTag(pkg, "Zwave"))
+		badges += '<i class="material-icons he-zwave" title="Z-Wave"></i>'
+	if (hasTag(pkg, "Zigbee"))
+		badges += '<i class="material-icons he-zigbee" title="Zigbee"></i>'
+	if (hasTag(pkg, "Cloud"))
+		badges += '<i class="material-icons material-icons-outlined" title="Cloud" style="font-size: 14pt">cloud</i>'
+	if (hasTag(pkg, "LAN"))
+		badges += '<i class="material-icons material-icons-outlined" title="LAN" style="font-size: 14pt">wifi</i>'
+	href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description + " <div>"+nonIconTagsHtml(pkg) +"<div style='text-align: right;display: table-cell;width: 100%;'>" + badges + "</div></div>", params: [location: pkg.location]) 
 	if (pkg.installed)
 		disableHrefButton("prefPkgInstallPackage${i}")
 	else
@@ -3273,6 +3302,7 @@ def addCss() {
 	paragraph """<style>
 		.hpmNoClick::before { content: ''; font-family: 'Material Icons'; transform: none !important }
 		.hpmClick::before { content: '' !important; font-family: 'Material Icons'; transform: none !important }
+		.hpmPill { display: inline-block; border: 1px solid #33b5e5; border-radius: 5px 5px; padding-left: 2px; padding-right: 2px; background-color: #33b5e5; color: white; margin-left: 2px; margin-right: 2px; }
 		
 	</style>"""
 }
