@@ -1784,7 +1784,7 @@ def performUpdates(runInBackground) {
 					else
 						location = driver.location
 					for (optItem in pkgsToAddOpt) {
-						def splitParts = optItem.split(':')
+						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg && splitParts[1] == driver.id) {
 							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
 							def fileContents = downloadFile(location)
