@@ -1925,7 +1925,7 @@ def performUpdates(runInBackground) {
 						if (splitParts[0] == pkg) {
 							if (splitParts[1] == driver.id) {
 								setBackgroundStatusMessage("Installing ${driver.name}")
-								def id = installApp(appFiles[location])
+								def id = installApp(driverFiles[location])
 								if (id != null) {
 									driver.heID = id
 									driver.beta = shouldInstallBeta(driver) && !forceProduction(pkg, driver.id)
