@@ -1683,9 +1683,9 @@ def performUpdates(runInBackground) {
 				else {
 					def location = getItemDownloadLocation(driver)
 					for (optItem in pkgsToAddOpt) {
-						def splitParts = optItem.split(':')
+						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg && splitParts[1] == driver.id) {
-							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
+							setBackgroundStatusMessage("Downloading optional component ${driver.name} ${location}")
 							def fileContents = downloadFile(location)
 							if (fileContents == null) {
 								return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
@@ -1799,8 +1799,8 @@ def performUpdates(runInBackground) {
 						def splitParts = optItem.split('~')
 						if (splitParts[0] == pkg) {
 							if (splitParts[1] == driver.id) {
-								setBackgroundStatusMessage("Installing ${driver.name}")
-								def id = installApp(appFiles[location])
+								setBackgroundStatusMessage("Installing ${driver.name} ${location}")
+								def id = installDriver(driverFiles[location])
 								if (id != null) {
 									driver.heID = id
 									driver.beta = shouldInstallBeta(driver)
@@ -2686,6 +2686,8 @@ def installDriver(driverCode) {
 		]
 		def result
 		httpPost(params) { resp ->
+		log.debug resp.data
+		log.debug resp.headers
 			if (resp.headers."Location" != null) {
 				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
 				completedActions["driverInstalls"] << result
