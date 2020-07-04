@@ -9,11 +9,15 @@ If you use Hub Security you will need to provide the admin username and password
 The app will then perform a _Match Up_. This will automatically search all of the apps and drivers you have installed and compare it to a list of those that have packages. If a match is found, the package manager will begin monitoring that package for updates.
 
 ## Installing a Package
-There are two ways to install a package. You can choose a package from a list of pre-configured repositories by choosing _From a Repository_, or, if you know the URL of a package you can choose _From a URL_
+There are three ways to install a package. You can _Search by Keywords_, _Browse by Tags_, or if you know the URL of a package you can choose _From a URL_
 
 ![Install Options Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Install1.PNG)
 
-If you choose to install from a repository you will first be presented with a list of categories, then the list of packages within that category. If you chose to enter a URL you will be prompted to enter the URL. _This is not the URL of a regular Hubitat app/driver. It is the URL of a package JSON. If you do not know what this is, you should probably choose to install from a repository_.
+If you choose to _Search by Keywords_, you will get a textbox where you can enter your search query. When you click _Next_ you will see all matching packages.
+
+If you choose to _Browse by Tags_, you will see a list of tags to filter by.
+
+If you chose to enter a URL you will be prompted to enter the URL. _This is not the URL of a regular Hubitat app/driver. It is the URL of a package JSON. If you do not know what this is, you should probably choose to install from a repository_.
 
 If the package includes any optional apps or drivers you will be prompted to choose which ones you'd like to install. If you need to change your decision later you can always return and perform a _Modify_ which will let you change the optional parameters.
 
