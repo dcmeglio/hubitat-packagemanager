@@ -9,11 +9,15 @@ If you use Hub Security you will need to provide the admin username and password
 The app will then perform a _Match Up_. This will automatically search all of the apps and drivers you have installed and compare it to a list of those that have packages. If a match is found, the package manager will begin monitoring that package for updates.
 
 ## Installing a Package
-There are two ways to install a package. You can choose a package from a list of pre-configured repositories by choosing _From a Repository_, or, if you know the URL of a package you can choose _From a URL_
+There are three ways to install a package. You can _Search by Keywords_, _Browse by Tags_, or if you know the URL of a package you can choose _From a URL_
 
 ![Install Options Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Install1.PNG)
 
-If you choose to install from a repository you will first be presented with a list of categories, then the list of packages within that category. If you chose to enter a URL you will be prompted to enter the URL. _This is not the URL of a regular Hubitat app/driver. It is the URL of a package JSON. If you do not know what this is, you should probably choose to install from a repository_.
+If you choose to _Search by Keywords_, you will get a textbox where you can enter your search query. When you click _Next_ you will see all matching packages.
+
+If you choose to _Browse by Tags_, you will see a list of tags to filter by.
+
+If you chose to enter a URL you will be prompted to enter the URL. _This is not the URL of a regular Hubitat app/driver. It is the URL of a package JSON. If you do not know what this is, you should probably choose to install from a repository_.
 
 If the package includes any optional apps or drivers you will be prompted to choose which ones you'd like to install. If you need to change your decision later you can always return and perform a _Modify_ which will let you change the optional parameters.
 
@@ -117,17 +121,8 @@ The package manifest is a JSON file that lists the apps and drivers that are par
 ### Repository File
 The repository file is another JSON file that can be created using the [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases). This lets you list all of the packages you have available in your repository. When assigning a category to your packages please reference the list below.
 
-#### Categories
-To prevent the list of packages from getting unwieldy, they are divided into categories. The following categories are currently available:
-
-* Control - lighting/motion/presence/locks/etc.
-* Convenience - A general category that's mainly a catch all.
-* Integrations - devices/applications/services 
-* Notifications - speakers/TTS/music/etc.
-* Security - presence/camera/sensors/etc.
-* Utility - Data/Button controllers/IR control/etc.
-
-If you feel the need to add additional categories, that's fine but I'd request you submit a Pull Request and update this README file. The idea is, if every developer uses the same set of categories we will be in a much better place where the list of categories doesn't get too large and unruly.
+#### Categories & Tags
+Categories are being phased out in favor of tags. A complete list of categories and tags can be viewed at https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/settings.json If you need additional tags because the existing ones don't cover your use, submit a PR against this file.
 
 #### Publishing your Repository
 When your repository file is ready to go, submit a Pull Request against https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json which includes the _name_ of your new repository and the _location_ of your repository JSON. Once your pull request is merged it will become available to all Hubitat Package Manager users.
