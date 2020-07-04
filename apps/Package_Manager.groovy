@@ -54,6 +54,7 @@ import groovy.transform.Field
 import java.util.regex.Matcher
 
 @Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
+@Field static String settingsFile = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/settings.json"
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
@@ -78,7 +79,7 @@ import java.util.regex.Matcher
 @Field static List driversToUninstallForModify = []
 @Field static List packagesMatchingInstalledEntries = []
 
-@Field static List iconTags = ["zwave", "zigbee", "cloud", "lan"]
+@Field static List iconTags = ["ZWave", "Zigbee", "Cloud", "LAN"]
 
 def installed() {
     initialize()
@@ -152,6 +153,7 @@ def prefOptions() {
 		app.updateSetting("installedRepositories", repos)
 	}
 
+	state.categoriesAndTags = loadSettingsFile()
 	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
         displayHeader()
 		if (state.newRepoMessage != "") {
@@ -420,14 +422,23 @@ def renderTags(pkgList) {
 	def tags = []
 
 	for (pkg in pkgList) {
-		if (!tags.contains(pkg.category))
-			tags << pkg.category
+		
+		if (state.categoriesAndTags.categories.contains(pkg.category)) {
+			if (!tags.contains(pkg.category))
+				tags << pkg.category
+		}
+		else
+			log.warn "Invalid category found ${pkg.category} for ${pkg.location}"
 		for (tag in pkg.tags) {
-			if (!tags.contains(tag))
-				tags << tag
+			if (state.categoriesAndTags.tags.contains(tag)) {
+				if (!tags.contains(tag))
+					tags << tag
+			}
+			else
+				log.warn "Invalid tag found ${tag} for ${pkg.location}"
 		}
 	}
-	tagsd = tags.sort()
+	tags = tags.sort()
 	input "pkgTags", "enum", title: "Choose tag(s)", options: tags, submitOnChange: true, multiple: true
 }
 
@@ -3057,6 +3068,10 @@ def rollback(error, runInBackground) {
 	return triggerError("Error Occurred During Installation", "An error occurred while installing the package: ${error}.", runInBackground)
 }
 
+def loadSettingsFile() {
+	return getJSONFile(settingsFile)
+}
+
 def installHPMManifest() {
 	if (location.hpmVersion == null) {
 		logDebug "Initializing HPM version"
@@ -3267,6 +3282,8 @@ def nonIconTagsHtml(pkg) {
 	def tagsHtml = '<div style="display:table-cell;width: 100%;">'
 	def i = 0
 	for (tag in pkg.tags) {
+		if (!state.categoriesAndTags.tags.contains(tag))
+			continue
 		if (i >= 5) {
 			tagsHtml += "... "
 			break
@@ -3283,7 +3300,7 @@ def nonIconTagsHtml(pkg) {
 
 def renderPackageButton(pkg, i) {
 	def badges = ""
-	if (hasTag(pkg, "Zwave"))
+	if (hasTag(pkg, "ZWave"))
 		badges += '<i class="material-icons he-zwave" title="Z-Wave"></i>'
 	if (hasTag(pkg, "Zigbee"))
 		badges += '<i class="material-icons he-zigbee" title="Zigbee"></i>'
