@@ -580,6 +580,7 @@ def prefInstallVerify() {
 	if (state.mainMenu)
 		return prefOptions()
 	logDebug "prefInstallVerify"
+if(!pkgInstall) return buildErrorPage("no package selected", "whats up?")
 	
 		atomicState.backgroundActionInProgress = null
 	statusMessage = ""		
