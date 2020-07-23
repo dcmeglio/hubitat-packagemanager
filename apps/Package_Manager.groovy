@@ -3154,6 +3154,74 @@ def getDriverVersion(id) {
 	return result
 }
 
+// File Installation Methods
+def installFile(fileName, contents) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/hub/fileManager/upload",
+			query: [
+				"folder": "/"
+			],
+			headers: [
+				"Cookie": state.cookie,
+				"Content-Type": "multipart/form-data; boundary=----WebKitFormBoundaryDtoO2QfPwfhTjOuS"
+			],
+			body: """------WebKitFormBoundaryDtoO2QfPwfhTjOuS
+Content-Disposition: form-data; name="uploadFile"; filename="${fileName}"
+Content-Type: text/plain
+
+${contents}
+
+------WebKitFormBoundaryDtoO2QfPwfhTjOuS
+Content-Disposition: form-data; name="folder"
+
+
+------WebKitFormBoundaryDtoO2QfPwfhTjOuS--""",
+			timeout: 300
+		]
+		httpPost(params) { resp ->
+			
+		}
+		return true
+	}
+	catch (e) {
+		log.error "Error installing file: ${e}"
+	}
+	return false
+}
+
+def uninstallFile(fileName) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/hub/fileManager/delete",
+			requestContentType: "application/json",
+			query: [
+				"folder": "/"
+			],
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: [
+				type: "file",
+				name: fileName
+			],
+			timeout: 300
+		]
+		httpPost(params) { resp ->
+
+		}
+		return true
+	}
+	catch (e) {
+		log.error "Error uninstalling file: ${e}"
+	}
+	return false
+}
+
 def setBackgroundStatusMessage(msg) {
 	if (statusMessage == null)
 		statusMessage = ""
