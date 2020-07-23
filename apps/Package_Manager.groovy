@@ -671,6 +671,12 @@ def performInstallation() {
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
 	def driverFiles = [:]
+	def fileManagerFiles = [:]
+	def fileMgrResults = downloadFileManagerFiles(manifest)
+	if (fileMgrResults.success)
+		fileManagerFiles = fileMgrResults.files
+	else 
+		return triggerError("Error downloading file", "An error occurred downloading ${fileMgrResults.name}", false)
 	
 	def requiredApps = getRequiredAppsFromManifest(manifest)
 	def requiredDrivers = getRequiredDriversFromManifest(manifest)
@@ -781,6 +787,18 @@ def performInstallation() {
 			matchedDriver.heID = id
 			matchedDriver.beta = shouldInstallBeta(matchedDriver)
 		}
+	}
+
+	for (fileToInstall in manifest.files) {
+		def location = getItemDownloadLocation(fileToInstall)
+		def fileContents = fileManagerFiles[location]
+		setBackgroundStatusMessage("Installing ${location}")
+		if (!installFile(fileToInstall.name, fileContents)){
+			state.manifests.remove(pkgInstall)
+			return rollback("Failed to install file ${location}. Please notify the package developer.", false)
+		}
+		else
+			completedActions["fileInstalls"] << fileToInstall
 	}
 	atomicState.backgroundActionInProgress = false
 }
@@ -1124,11 +1142,17 @@ def performRepair() {
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
 	def driverFiles = [:]
+	def fileManagerFiles = [:]
 	
 	def installedManifest = state.manifests[pkgRepair]
 	def manifest = getJSONFile(pkgRepair)
-		
+	
 	if (manifest) {
+		def fileMgrResults = downloadFileManagerFiles(manifest)
+		if (fileMgrResults.success)
+			fileManagerFiles = fileMgrResults.files
+		else
+			return triggerError("Error downloading file", "An error occurred downloading ${fileMgrResults.name}", false)
 		for (app in manifest.apps) {
 			def appHeID = getAppById(installedManifest,app.id)?.heID
 			if (isAppInstalled(installedManifest,app.id) && installedApps.find { it -> it.id == appHeID }) {
@@ -1237,6 +1261,18 @@ def performRepair() {
 					return rollback("Failed to install driver ${location}.  Please notify the package developer.", runInBackground)
 			}
 		}
+
+		for (fileToInstall in manifest.files) {
+			def location = getItemDownloadLocation(fileToInstall)
+			def fileContents = fileManagerFiles[location]
+			setBackgroundStatusMessage("Installing ${location}")
+			if (!installFile(fileToInstall.name, fileContents)){
+				return rollback("Failed to install file ${location}. Please notify the package developer.", false)
+			}
+			else
+				completedActions["fileInstalls"] << fileToInstall
+		}
+
 		if (state.manifests[pkgRepair] != null)
 			copyInstalledItemsToNewManifest(state.manifests[pkgRepair], manifest)
 		state.manifests[pkgRepair] = manifest
@@ -1366,6 +1402,16 @@ def performUninstall() {
 					return rollback("Failed to uninstall driver ${driver.location}. Please delete all instances of this device before uninstalling the package.", false)
 			}
 
+		}
+
+		for (file in pkg.files) {
+			setBackgroundStatusMessage("Uninstalling ${file.name}")
+			if (uninstallFile(file.name)) {
+				completedActions["fileUninstalls"] << file
+			}
+			else {
+				return rollback("Failed to uninstall file ${file.name}.", false)
+			}
 		}
 		state.manifests.remove(pkgToUninstall)
 	}
@@ -1707,9 +1753,11 @@ def performUpdates(runInBackground) {
 	def downloadedManifests = [:]
 	def appFiles = [:]
 	def driverFiles = [:]
+	def fileManagerFiles = [:]
 	
 	for (pkg in pkgsToUpdate) {
 		def manifest = getJSONFile(pkg)
+		
 		if (shouldInstallBeta(manifest)) {
 			manifest = getJSONFile(getItemDownloadLocation(manifest))
 			if (manifest)
@@ -1723,6 +1771,11 @@ def performUpdates(runInBackground) {
 		
 		downloadedManifests[pkg] = manifest
 		if (manifest) {
+			def fileMgrResults = downloadFileManagerFiles(manifest)
+			if (fileMgrResults.success)
+				fileManagerFiles = fileManagerFiles + fileMgrResults.files
+			else
+				return triggerError("Error downloading file", "An error occurred downloading ${fileMgrResults.name}", false)
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
@@ -2007,6 +2060,18 @@ def performUpdates(runInBackground) {
 					}
 				}
 			}
+
+			for (fileToInstall in manifest.files) {
+				def location = getItemDownloadLocation(fileToInstall)
+				def fileContents = fileManagerFiles[location]
+				setBackgroundStatusMessage("Installing ${location}")
+				if (!installFile(fileToInstall.name, fileContents)){
+					return rollback("Failed to install file ${location}. Please notify the package developer.", false)
+				}
+				else
+					completedActions["fileInstalls"] << fileToInstall
+			}
+
 			if (state.manifests[pkg] != null)
 				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
 			resultData.succeeded << pkg
@@ -2449,6 +2514,9 @@ def initializeRollbackState(action) {
 	completedActions["driverUninstalls"] = []
 	completedActions["appUpgrades"] = []
 	completedActions["driverUpgrades"] = []
+	completedActions["fileUninstalls"] = []
+	completedActions["fileInstalls"] = []
+	completedActions["fileUpgrades"] = []
 }
 
 def getInstalledPackages(onlyWithOptional) {
@@ -3281,6 +3349,8 @@ def rollback(error, runInBackground) {
 			uninstallApp(installedApp)
 		for (installedDriver in completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
+		for (installedFile in completedActions["fileInstalls"])
+			uninstallFile(installedFile.name)
 	}
 	if (installAction == "modify" || installAction == "update") {
 		for (installedApp in completedActions["appInstalls"])
@@ -3300,6 +3370,9 @@ def rollback(error, runInBackground) {
 			def newHeID = installDriver(uninstalledDriver.source)
 			getDriverById(manifest, uninstalledDriver.id).heID = newHeID
 		}
+
+		for (uninstalledFile in completedActions["fileUninstalls"])
+			installFile(uninstalledFile.name, downloadFile(uninstalledFile.location))
 	}
 	if (installAction == "update") {
 		for (upgradedApp in completedActions["appUpgrades"]) {
@@ -3429,6 +3502,20 @@ def minimizeStoredManifests() {
 		if (manifest.value.minimumHEVersion != null)
 			manifest.value.remove("minimumHEVersion")
 	}
+}
+
+def downloadFileManagerFiles(manifest) {
+	def files = [:]
+	for (fileToInstall in manifest.files) {
+		def location = getItemDownloadLocation(fileToInstall)
+		setBackgroundStatusMessage("Downloading ${location}")
+		def fileContents = downloadFile(location)
+		if (fileContents == null) {
+			return [sucess:false, name: location]
+		}
+		files[location] = fileContents
+	}
+	return [success:true, files: files]
 }
 
 def findMatchingAppOrDriver(installedList, item) {
