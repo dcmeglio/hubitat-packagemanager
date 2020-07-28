@@ -42,5 +42,12 @@
 			"betaLocation": "https://raw.githubusercontent.com/dcmeglio/.../betafile.groovy",
 			"required": true
 		}
+	],
+	"files" : [
+		{
+			"id":"3f7ffb28-f248-40c3-8489-113f9eebc4a1",
+			"name": "myfile.js",
+			"location": "https://raw.githubusercontent.com/dcmeglio/.../file.js"
+		}
 	]
 }

@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.5.0
+ *  Hubitat Package Manager v1.6.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -793,7 +793,7 @@ def performInstallation() {
 		def location = getItemDownloadLocation(fileToInstall)
 		def fileContents = fileManagerFiles[location]
 		setBackgroundStatusMessage("Installing ${location}")
-		if (!installFile(fileToInstall.name, fileContents)){
+		if (!installFile(fileToInstall.id, fileToInstall.name, fileContents)) {
 			state.manifests.remove(pkgInstall)
 			return rollback("Failed to install file ${location}. Please notify the package developer.", false)
 		}
@@ -1266,7 +1266,7 @@ def performRepair() {
 			def location = getItemDownloadLocation(fileToInstall)
 			def fileContents = fileManagerFiles[location]
 			setBackgroundStatusMessage("Installing ${location}")
-			if (!installFile(fileToInstall.name, fileContents)){
+			if (!installFile(fileToInstall.id, fileToInstall.name, fileContents)) {
 				return rollback("Failed to install file ${location}. Please notify the package developer.", false)
 			}
 			else
@@ -1406,7 +1406,7 @@ def performUninstall() {
 
 		for (file in pkg.files) {
 			setBackgroundStatusMessage("Uninstalling ${file.name}")
-			if (uninstallFile(file.name)) {
+			if (uninstallFile(file.id, file.name)) {
 				completedActions["fileUninstalls"] << file
 			}
 			else {
@@ -2065,7 +2065,7 @@ def performUpdates(runInBackground) {
 				def location = getItemDownloadLocation(fileToInstall)
 				def fileContents = fileManagerFiles[location]
 				setBackgroundStatusMessage("Installing ${location}")
-				if (!installFile(fileToInstall.name, fileContents)){
+				if (!installFile(fileToInstall.id, fileToInstall.name, fileContents)) {
 					return rollback("Failed to install file ${location}. Please notify the package developer.", false)
 				}
 				else
@@ -3223,7 +3223,7 @@ def getDriverVersion(id) {
 }
 
 // File Installation Methods
-def installFile(fileName, contents) {
+def installFile(id, fileName, contents) {
 	try
 	{
 		def params = [
@@ -3237,7 +3237,7 @@ def installFile(fileName, contents) {
 				"Content-Type": "multipart/form-data; boundary=----WebKitFormBoundaryDtoO2QfPwfhTjOuS"
 			],
 			body: """------WebKitFormBoundaryDtoO2QfPwfhTjOuS
-Content-Disposition: form-data; name="uploadFile"; filename="${fileName}"
+Content-Disposition: form-data; name="uploadFile"; filename="${id}-${fileName}"
 Content-Type: text/plain
 
 ${contents}
@@ -3260,23 +3260,21 @@ Content-Disposition: form-data; name="folder"
 	return false
 }
 
-def uninstallFile(fileName) {
+def uninstallFile(id, fileName) {
 	try
 	{
 		def params = [
 			uri: "http://127.0.0.1:8080",
 			path: "/hub/fileManager/delete",
+			contentType: "application/json",
 			requestContentType: "application/json",
-			query: [
-				"folder": "/"
-			],
 			headers: [
 				"Cookie": state.cookie
 			],
-			body: [
-				type: "file",
-				name: fileName
-			],
+			body: groovy.json.JsonOutput.toJson(
+				name: "${id}-${fileName}",
+				type: "file"
+			),
 			timeout: 300
 		]
 		httpPost(params) { resp ->
@@ -3289,7 +3287,7 @@ def uninstallFile(fileName) {
 	}
 	return false
 }
-
+		
 def setBackgroundStatusMessage(msg) {
 	if (statusMessage == null)
 		statusMessage = ""
@@ -3350,7 +3348,7 @@ def rollback(error, runInBackground) {
 		for (installedDriver in completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
 		for (installedFile in completedActions["fileInstalls"])
-			uninstallFile(installedFile.name)
+			uninstallFile(installedFile.id, installedFile.name)
 	}
 	if (installAction == "modify" || installAction == "update") {
 		for (installedApp in completedActions["appInstalls"])
