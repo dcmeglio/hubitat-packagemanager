@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.5.0
+ *  Hubitat Package Manager v1.6.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -60,6 +60,9 @@ import java.util.regex.Matcher
 @Field static List allPackages = []
 @Field static def completedActions = [:]
 @Field static def manifestForRollback = null
+
+@Field static def downloadQueue = [:]
+@Field static Integer maxDownloadQueueSize = 10
 
 
 @Field static String installAction = ""
@@ -235,8 +238,10 @@ def prefSettings(params) {
 							input "notifyUpdateFailureDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
 					}
 					
-					if (notifyUpdatesAvailable || notifyOnSuccess || notifyOnFailure)
+					if (notifyUpdatesAvailable || notifyOnSuccess || notifyOnFailure) 
 						input "notifyIncludeHubName", "bool", title: "Include hub name in notifications", defaultValue: false
+					if (notifyOnSuccess || notifyOnFailure)
+						input "notifySpecificPackages", "bool", title: "Send notifications for each specific package", defaultValue: false
 				}
 				def reposToShow = [:]
 				state.repositoryListingJSON.repositories.each { r -> reposToShow << ["${r.location}":r.name] }
@@ -666,6 +671,12 @@ def performInstallation() {
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
 	def driverFiles = [:]
+	def fileManagerFiles = [:]
+	def fileMgrResults = downloadFileManagerFiles(manifest)
+	if (fileMgrResults.success)
+		fileManagerFiles = fileMgrResults.files
+	else 
+		return triggerError("Error downloading file", "An error occurred downloading ${fileMgrResults.name}", false)
 	
 	def requiredApps = getRequiredAppsFromManifest(manifest)
 	def requiredDrivers = getRequiredDriversFromManifest(manifest)
@@ -776,6 +787,18 @@ def performInstallation() {
 			matchedDriver.heID = id
 			matchedDriver.beta = shouldInstallBeta(matchedDriver)
 		}
+	}
+
+	for (fileToInstall in manifest.files) {
+		def location = getItemDownloadLocation(fileToInstall)
+		def fileContents = fileManagerFiles[location]
+		setBackgroundStatusMessage("Installing ${location}")
+		if (!installFile(fileToInstall.id, fileToInstall.name, fileContents)) {
+			state.manifests.remove(pkgInstall)
+			return rollback("Failed to install file ${location}. Please notify the package developer.", false)
+		}
+		else
+			completedActions["fileInstalls"] << fileToInstall
 	}
 	atomicState.backgroundActionInProgress = false
 }
@@ -1119,11 +1142,17 @@ def performRepair() {
 	// Download all files first to reduce the chances of a network error
 	def appFiles = [:]
 	def driverFiles = [:]
+	def fileManagerFiles = [:]
 	
 	def installedManifest = state.manifests[pkgRepair]
 	def manifest = getJSONFile(pkgRepair)
-		
+	
 	if (manifest) {
+		def fileMgrResults = downloadFileManagerFiles(manifest)
+		if (fileMgrResults.success)
+			fileManagerFiles = fileMgrResults.files
+		else
+			return triggerError("Error downloading file", "An error occurred downloading ${fileMgrResults.name}", false)
 		for (app in manifest.apps) {
 			def appHeID = getAppById(installedManifest,app.id)?.heID
 			if (isAppInstalled(installedManifest,app.id) && installedApps.find { it -> it.id == appHeID }) {
@@ -1232,6 +1261,18 @@ def performRepair() {
 					return rollback("Failed to install driver ${location}.  Please notify the package developer.", runInBackground)
 			}
 		}
+
+		for (fileToInstall in manifest.files) {
+			def location = getItemDownloadLocation(fileToInstall)
+			def fileContents = fileManagerFiles[location]
+			setBackgroundStatusMessage("Installing ${location}")
+			if (!installFile(fileToInstall.id, fileToInstall.name, fileContents)) {
+				return rollback("Failed to install file ${location}. Please notify the package developer.", false)
+			}
+			else
+				completedActions["fileInstalls"] << fileToInstall
+		}
+
 		if (state.manifests[pkgRepair] != null)
 			copyInstalledItemsToNewManifest(state.manifests[pkgRepair], manifest)
 		state.manifests[pkgRepair] = manifest
@@ -1362,6 +1403,16 @@ def performUninstall() {
 			}
 
 		}
+
+		for (file in pkg.files) {
+			setBackgroundStatusMessage("Uninstalling ${file.name}")
+			if (uninstallFile(file.id, file.name)) {
+				completedActions["fileUninstalls"] << file
+			}
+			else {
+				return rollback("Failed to uninstall file ${file.name}.", false)
+			}
+		}
 		state.manifests.remove(pkgToUninstall)
 	}
 	
@@ -1404,6 +1455,11 @@ def performUpdateCheck() {
 				log.warn "Found a bad manifest ${pkg.key}, please notify the package developer."
 				continue
 			}
+
+			if (manifest.minimumHEVersion != null && !verifyHEVersion(manifest.minimumHEVersion)) {
+                log.warn "New version of ${manifest.packageName} found but requires ${manifest.minimumHEVersion}, please update your firmware to upgrade."
+				continue
+            } 
 
 			def newVersionResult = newVersionAvailable(manifest, state.manifests[pkg.key])
 			if (newVersionResult.newVersion) {
@@ -1686,16 +1742,22 @@ def forceProduction(pkg, id) {
 }
 
 def performUpdates(runInBackground) {
-	if (!login())
-		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", runInBackground)
+	def resultData = [success: null, succeeded: [], failed: [], message: null]
+	if (!login()) {
+		resultData.message = triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", runInBackground)
+		resultData.success = false
+		return resultData
+	}
 		
 	// Download all files first to reduce the chances of a network error
 	def downloadedManifests = [:]
 	def appFiles = [:]
 	def driverFiles = [:]
+	def fileManagerFiles = [:]
 	
 	for (pkg in pkgsToUpdate) {
 		def manifest = getJSONFile(pkg)
+		
 		if (shouldInstallBeta(manifest)) {
 			manifest = getJSONFile(getItemDownloadLocation(manifest))
 			if (manifest)
@@ -1709,6 +1771,11 @@ def performUpdates(runInBackground) {
 		
 		downloadedManifests[pkg] = manifest
 		if (manifest) {
+			def fileMgrResults = downloadFileManagerFiles(manifest)
+			if (fileMgrResults.success)
+				fileManagerFiles = fileManagerFiles + fileMgrResults.files
+			else
+				return triggerError("Error downloading file", "An error occurred downloading ${fileMgrResults.name}", false)
 			for (app in manifest.apps) {
 				if (isAppInstalled(installedManifest,app.id)) {
 					if (shouldUpgrade(pkg, app.id)) {
@@ -1720,7 +1787,10 @@ def performUpdates(runInBackground) {
 						setBackgroundStatusMessage("Downloading ${app.name}")
 						def fileContents = downloadFile(location)
 						if (fileContents == null) {
-							return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+							resultData.success = false
+							resultData.failed << pkg
+							resultData.message = triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+							return resultData
 						}
 						appFiles[location] = fileContents	
 					}
@@ -1734,7 +1804,10 @@ def performUpdates(runInBackground) {
 					setBackgroundStatusMessage("Downloading ${app.name} because it is required and not installed")
 					def fileContents = downloadFile(location)
 					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+						resultData.success = false
+						resultData.failed << pkg
+						resultData.message = triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+						return resultData
 					}
 					appFiles[location] = fileContents
 				}
@@ -1751,7 +1824,10 @@ def performUpdates(runInBackground) {
 								setBackgroundStatusMessage("Downloading optional component ${app.name}")
 								def fileContents = downloadFile(location)
 								if (fileContents == null) {
-									return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+									resultData.success = false
+									resultData.failed << pkg
+									resultData.message = triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+									return resultData
 								}
 								appFiles[location] = fileContents
 							}
@@ -1770,7 +1846,10 @@ def performUpdates(runInBackground) {
 						setBackgroundStatusMessage("Downloading ${driver.name}")
 						def fileContents = downloadFile(location)
 						if (fileContents == null) {
-							return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+							resultData.success = false
+							resultData.failed << pkg
+							resultData.message = triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+							return resultData
 						}
 						driverFiles[location] = fileContents
 					}
@@ -1784,7 +1863,10 @@ def performUpdates(runInBackground) {
 					setBackgroundStatusMessage("Downloading ${driver.name} because it is required and not installed")
 					def fileContents = downloadFile(location)
 					if (fileContents == null) {
-						return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+						resultData.success = false
+						resultData.failed << pkg
+						resultData.message = triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+						return resultData
 					}
 					driverFiles[location] = fileContents
 				}
@@ -1800,7 +1882,10 @@ def performUpdates(runInBackground) {
 							setBackgroundStatusMessage("Downloading optional component ${driver.name}")
 							def fileContents = downloadFile(location)
 							if (fileContents == null) {
-								return triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+								resultData.success = false
+								resultData.failed << pkg
+								resultData.message = triggerError("Error downloading file", "An error occurred downloading ${location}", runInBackground)
+								return resultData
 							}
 							driverFiles[location] = fileContents
 						}
@@ -1811,7 +1896,10 @@ def performUpdates(runInBackground) {
 				sendLocationEvent(name: "hpmVersion", value: manifest.version)
 		}
 		else {
-			return triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.", runInBackground)
+			resultData.success = false
+			resultData.failed << pkg
+			resultData.message = triggerError("Error downloading file", "The manifest file ${pkg} no longer seems to be valid.", runInBackground)
+			return resultData
 		}
 	}
 	
@@ -1844,8 +1932,12 @@ def performUpdates(runInBackground) {
 							if (app.oauth)
 								enableOAuth(app.heID)
 						}
-						else
-							return rollback("Failed to upgrade app ${location}", runInBackground)
+						else {
+							resultData.success = false
+							resultData.failed << pkg
+							resultData.message = rollback("Failed to upgrade app ${location}", runInBackground)
+							return resultData
+						}
 					}
 				}
 				else if (app.required && !optionalItemsOnly(pkg)) {
@@ -1862,8 +1954,12 @@ def performUpdates(runInBackground) {
 						if (app.oauth)
 							enableOAuth(app.heID)
 					}
-					else
-						return rollback("Failed to install app ${location}", runInBackground)
+					else {
+						resultData.success = false
+						resultData.failed << pkg
+						resultData.message = rollback("Failed to install app ${location}", runInBackground)
+						return resultData
+					}
 				}
 				else {
 					def location
@@ -1883,8 +1979,12 @@ def performUpdates(runInBackground) {
 									if (app.oauth)
 										enableOAuth(app.heID)
 								}
-								else
-									return rollback("Failed to install app ${location}", runInBackground)
+								else {
+									resultData.success = false
+									resultData.failed << pkg
+									resu;tData.message = rollback("Failed to install app ${location}", runInBackground)
+									return resultData
+								}
 							}
 						}
 					}
@@ -1906,8 +2006,12 @@ def performUpdates(runInBackground) {
 						if (upgradeDriver(driver.heID, driverFiles[location])) {
 							completedActions["driverUpgrades"] << [id:driver.heID,source:sourceCode]
 						}
-						else
-							return rollback("Failed to upgrade driver ${location}", runInBackground)
+						else {
+							resultData.success = false
+							resultData.failed << pkg
+							resultData.message = rollback("Failed to upgrade driver ${location}", runInBackground)
+							return resultData
+						}
 					}
 				}
 				else if (driver.required && !optionalItemsOnly(pkg)) {
@@ -1922,8 +2026,12 @@ def performUpdates(runInBackground) {
 						driver.heID = id
 						driver.beta = shouldInstallBeta(driver) && !forceProduction(pkg, driver.id)
 					}
-					else
-						return rollback("Failed to install driver ${location}", runInBackground)
+					else {
+						resultData.success = false
+						resultData.failed << pkg
+						resultData.message = rollback("Failed to install driver ${location}", runInBackground)
+						return resultData
+					}
 				}
 				else {
 					def location
@@ -1941,16 +2049,32 @@ def performUpdates(runInBackground) {
 									driver.heID = id
 									driver.beta = shouldInstallBeta(driver) && !forceProduction(pkg, driver.id)
 								}
-								else
-									return rollback("Failed to install driver ${location}", runInBackground)
+								else {
+									resultData.success = false
+									resultData.failed << pkg
+									resultData.message = rollback("Failed to install driver ${location}", runInBackground)
+									return resultData
+								}
 							}
 						}
 					}
 				}
 			}
+
+			for (fileToInstall in manifest.files) {
+				def location = getItemDownloadLocation(fileToInstall)
+				def fileContents = fileManagerFiles[location]
+				setBackgroundStatusMessage("Installing ${location}")
+				if (!installFile(fileToInstall.id, fileToInstall.name, fileContents)) {
+					return rollback("Failed to install file ${location}. Please notify the package developer.", false)
+				}
+				else
+					completedActions["fileInstalls"] << fileToInstall
+			}
+
 			if (state.manifests[pkg] != null)
 				copyInstalledItemsToNewManifest(state.manifests[pkg], manifest)
-
+			resultData.succeeded << pkg
 			state.manifests[pkg] = manifest
 			minimizeStoredManifests()
 		}
@@ -1960,8 +2084,10 @@ def performUpdates(runInBackground) {
 	logDebug "Updates complete"
 	if (runInBackground != true)
 		atomicState.backgroundActionInProgress = false
-	else
-		return true
+	else {
+		resultData.success = true
+		return resultData
+	}
 }
 
 def prefPkgMatchUp() {
@@ -2275,12 +2401,14 @@ def checkForUpdates() {
 			if (packagesWithUpdates?.size() > 0) {
 				app.updateSetting("pkgsToUpdate", packagesWithUpdates)
 				pkgsToUpdate = packagesWithUpdates
+				def result = null
 				try
 				{
-					def result = performUpdates(true)
-					if (result == true) {
+					result = performUpdates(true)
+					if (result.success == true) {
 						if (notifyOnSuccess) {
-							notifyUpdateSuccessDevices*.deviceNotification(buildNotification("The packages were updated successfully"))
+							if (!notifySpecificPackages)
+								notifyUpdateSuccessDevices*.deviceNotification(buildNotification("The packages were updated successfully"))
 							if (packagesWithUpdates.size() < allUpgradeCount)
 								app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 							else
@@ -2290,7 +2418,8 @@ def checkForUpdates() {
 					else {
 						log.error "Automatic update failure: ${result}"
 						if (notifyOnFailure) {
-							notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
+							if (notifySpecificPackages)
+								notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
 							app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
 						}
 					}
@@ -2298,8 +2427,23 @@ def checkForUpdates() {
 				catch (e) {
 					log.error "Automatic update failure: ${e}"
 					if (notifyOnFailure) {
-						notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
+						if (notifySpecificPackages)
+							notifyUpdateFailureDevices*.deviceNotification(buildNotification("One or more packages failed to automatically update. Check the logs for more information"))
 						app.updateLabel("Hubitat Package Manager <span style='color:green'>Updates Available</span>")
+					}
+				}
+				if (notifySpecificPackages) {
+					if (notifyOnSuccess) {
+						for (successful in result.succeeded) {
+							log.debug successful
+							log.debug state.manifests[successful].packageName
+							notifyUpdateSuccessDevices*.deviceNotification(buildNotification("${state.manifests[successful].packageName} was updated successfully"))
+						}
+					}
+					if (notifyOnFailure) {
+						for (failed in result.failed) {
+							notifyUpdateSuccessDevices*.deviceNotification(buildNotification("${state.manifests[failed].packageName} failed to update"))
+						}
 					}
 				}
 			}
@@ -2370,6 +2514,9 @@ def initializeRollbackState(action) {
 	completedActions["driverUninstalls"] = []
 	completedActions["appUpgrades"] = []
 	completedActions["driverUpgrades"] = []
+	completedActions["fileUninstalls"] = []
+	completedActions["fileInstalls"] = []
+	completedActions["fileUpgrades"] = []
 }
 
 def getInstalledPackages(onlyWithOptional) {
@@ -2484,6 +2631,38 @@ def downloadFile(file) {
 	}
 }
 
+def downloadFileAsync(String file, String callback, Map data = null) {
+	try
+	{
+		def params = [
+			uri: file,
+			requestContentType: "application/json",
+			contentType: "text/plain",
+			timeout: 300
+		]
+		asynchttpGet(downloadFileAsyncCallback, params, [callback: callback, data: data, file: file])
+	}
+	catch (e) {
+		log.error "Error downloading ${file}: ${e}"
+		return null
+	}
+}
+
+def downloadFileAsyncCallback(resp, data) {
+	def result = null
+	try
+	{
+		if (resp.status >= 200 && resp.status <= 299)
+			result = resp.data
+		else
+			log.error "Error downloading ${data['file']}: Received response ${resp.status}"
+	}
+	catch (e) {
+		log.error "Error downloading ${data['file']}: ${e}"
+	}
+	this."${data['callback']}"(result, data['data'])
+}
+
 def getJSONFile(uri) {
 	try
 	{
@@ -2493,6 +2672,74 @@ def getJSONFile(uri) {
 	catch (e) {
 		return null
 	}	
+}
+
+def getMultipleJSONFilesCallback(resp, data) {
+	synchronized (downloadQueue) {
+		downloadQueue[data.batchid].results[data.uri].result = resp
+		downloadQueue[data.batchid].results[data.uri].complete = true
+		
+		"${data.statusCallback}"(data.uri, data.uri)
+		
+		def queuedItem = downloadQueue[data.batchid].results.find { k, v -> v.queued == true}
+		if (queuedItem != null) {
+			def itemValue = queuedItem.value
+			itemValue.queued = false
+			getJSONFileAsync(queuedItem.key, getMultipleJSONFilesCallback, [batchid: data.batchid, uri: queuedItem.key, callback: itemValue.callback, statusCallback: itemValue.statusCallback, data: itemValue.data])
+		}
+		else if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize) {
+			"${data.callback}"(downloadQueue[data.batchid].results, data.data)
+		}
+	}
+}
+
+def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null) {
+	def batchid = UUID.randomUUID().toString()
+	synchronized (downloadQueue) {
+		def itemsToRemove = []
+		for (batch in downloadQueue.keySet()) {
+			if (downloadQueue[batch].totalBatchSize == downloadQueue[batch].results.count { k, v -> v.complete == true}) {
+				itemsToRemove << batch
+			}
+		}
+		for (removeItem in itemsToRemove) {
+			downloadQueue.remove(removeItem)
+		}
+		
+		downloadQueue[batchid] = [totalBatchSize: uriList.size(), results: [:]]
+		
+		for (uri in uriList) {
+			if (downloadQueue[batchid].results.count { k, v -> v.queued == false} < maxDownloadQueueSize) {
+				downloadQueue[batchid].results[uri] = [complete: false, result: null, queued: false]
+				getJSONFileAsync(uri, getMultipleJSONFilesCallback, [batchid: batchid, uri: uri, callback: completeCallback, statusCallback: statusCallback, data: data])
+			}
+			else {
+				downloadQueue[batchid].results[uri] = [complete: false, result: null, queued: true, callback: completeCallback, statusCallback: statusCallback, data: data]
+			}
+		}
+	}
+}
+
+def getJSONFileAsync(String uri, String callback, Map data = null) {
+	try
+	{
+		downloadFileAsync(uri, getJSONAsyncResult, [callback: callback, data: data])
+	}
+	catch (e) {
+		return null
+	}	
+}
+
+def getJSONAsyncResult(resp, data) {
+	def result = null
+	try
+	{
+		result = new groovy.json.JsonSlurper().parseText(resp)
+	}
+	catch (e) {
+
+	}
+	this."${data['callback']}"(result, data['data'])
 }
 
 def getOptionalAppsFromManifest(manifest) {
@@ -2975,6 +3222,72 @@ def getDriverVersion(id) {
 	return result
 }
 
+// File Installation Methods
+def installFile(id, fileName, contents) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/hub/fileManager/upload",
+			query: [
+				"folder": "/"
+			],
+			headers: [
+				"Cookie": state.cookie,
+				"Content-Type": "multipart/form-data; boundary=----WebKitFormBoundaryDtoO2QfPwfhTjOuS"
+			],
+			body: """------WebKitFormBoundaryDtoO2QfPwfhTjOuS
+Content-Disposition: form-data; name="uploadFile"; filename="${id}-${fileName}"
+Content-Type: text/plain
+
+${contents}
+
+------WebKitFormBoundaryDtoO2QfPwfhTjOuS
+Content-Disposition: form-data; name="folder"
+
+
+------WebKitFormBoundaryDtoO2QfPwfhTjOuS--""",
+			timeout: 300
+		]
+		httpPost(params) { resp ->
+			
+		}
+		return true
+	}
+	catch (e) {
+		log.error "Error installing file: ${e}"
+	}
+	return false
+}
+
+def uninstallFile(id, fileName) {
+	try
+	{
+		def params = [
+			uri: "http://127.0.0.1:8080",
+			path: "/hub/fileManager/delete",
+			contentType: "application/json",
+			requestContentType: "application/json",
+			headers: [
+				"Cookie": state.cookie
+			],
+			body: groovy.json.JsonOutput.toJson(
+				name: "${id}-${fileName}",
+				type: "file"
+			),
+			timeout: 300
+		]
+		httpPost(params) { resp ->
+
+		}
+		return true
+	}
+	catch (e) {
+		log.error "Error uninstalling file: ${e}"
+	}
+	return false
+}
+		
 def setBackgroundStatusMessage(msg) {
 	if (statusMessage == null)
 		statusMessage = ""
@@ -3034,6 +3347,8 @@ def rollback(error, runInBackground) {
 			uninstallApp(installedApp)
 		for (installedDriver in completedActions["driverInstalls"])
 			uninstallDriver(installedDriver)
+		for (installedFile in completedActions["fileInstalls"])
+			uninstallFile(installedFile.id, installedFile.name)
 	}
 	if (installAction == "modify" || installAction == "update") {
 		for (installedApp in completedActions["appInstalls"])
@@ -3053,6 +3368,9 @@ def rollback(error, runInBackground) {
 			def newHeID = installDriver(uninstalledDriver.source)
 			getDriverById(manifest, uninstalledDriver.id).heID = newHeID
 		}
+
+		for (uninstalledFile in completedActions["fileUninstalls"])
+			installFile(uninstalledFile.name, downloadFile(uninstalledFile.location))
 	}
 	if (installAction == "update") {
 		for (upgradedApp in completedActions["appUpgrades"]) {
@@ -3182,6 +3500,20 @@ def minimizeStoredManifests() {
 		if (manifest.value.minimumHEVersion != null)
 			manifest.value.remove("minimumHEVersion")
 	}
+}
+
+def downloadFileManagerFiles(manifest) {
+	def files = [:]
+	for (fileToInstall in manifest.files) {
+		def location = getItemDownloadLocation(fileToInstall)
+		setBackgroundStatusMessage("Downloading ${location}")
+		def fileContents = downloadFile(location)
+		if (fileContents == null) {
+			return [sucess:false, name: location]
+		}
+		files[location] = fileContents
+	}
+	return [success:true, files: files]
 }
 
 def findMatchingAppOrDriver(installedList, item) {
