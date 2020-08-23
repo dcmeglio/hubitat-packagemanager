@@ -8,6 +8,9 @@
  *	https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url
  *
  */
+
+import groovy.transform.Field
+import java.util.regex.Matcher
  
 definition(
     name: "Hubitat Package Manager",
@@ -50,9 +53,6 @@ preferences {
 	page(name: "prefPkgView")
 }
 
-import groovy.transform.Field
-import java.util.regex.Matcher
-
 @Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
 @Field static String settingsFile = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/settings.json"
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
@@ -93,6 +93,11 @@ def updated() {
     initialize()
 }
 
+def uninstalled() {
+	logDebug "uninstalling app"
+	unschedule()
+}
+
 def initialize() {
 	def timeOfDayForUpdateChecks
 	if (updateCheckTime == null)
@@ -102,11 +107,6 @@ def initialize() {
 	schedule("00 ${timeOfDayForUpdateChecks.minutes} ${timeOfDayForUpdateChecks.hours} ? * *", checkForUpdates)
 	
 	performMigrations()
-}
-
-def uninstalled() {
-	logDebug "uninstalling app"
-	unschedule()
 }
 
 def appButtonHandler(btn) {
@@ -122,61 +122,6 @@ def appButtonHandler(btn) {
 		case ~/^btnDeleteRepo(\d+)/:
 			deleteCustomRepository(Matcher.lastMatcher[0][1].toInteger())
 			break
-	}
-}
-
-def prefOptions() {
-	state.remove("mainMenu")
-	
-	if (state.customRepo && customRepo != "" && customRepo != null) {
-		def repoListing = getJSONFile(customRepo)
-		if (repoListing == null) {
-			clearStateSettings(true)
-			return buildErrorPage("Error loading repository", "The repository file you specified could not be loaded.")
-		} 
-		else {
-			installedRepositories << customRepo
-			if (state.customRepositories == null)
-				state.customRepositories = [:]
-			if (state.customRepositories[customRepo] == null)
-				state.customRepositories << ["${customRepo}":repoListing.author]
-		}
-	}
-	if (state.firstRun == true)
-		return prefPkgMatchUp()
-	else {
-		clearStateSettings(true)
-		initialize()
-		installHPMManifest()
-	}
-	if (installedRepositories == null) {
-		logDebug "No installed repositories, grabbing all"
-		def repos = [] as List
-		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
-		app.updateSetting("installedRepositories", repos)
-	}
-
-	state.categoriesAndTags = loadSettingsFile()
-	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
-        displayHeader()
-		if (state.newRepoMessage != "") {
-			section {
-				paragraph state.newRepoMessage
-				state.newRepoMessage = ""
-			}
-		}
-		section {
-			paragraph "What would you like to do?"
-			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
-			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package. This allows you to add or remove optional components.")
-			href(name: "prefPkgRepair", title: "Repair", required: false, page: "prefPkgRepair", description: "Repair a package by ensuring all of the newest versions are installed in case something went wrong.")
-			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall packages.")
-            href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates for your installed packages.")
-			href(name: "prefPkgMatchUp", title: "Match Up", required: false, page: "prefPkgMatchUp", description: "Match up the apps and drivers you already have installed with packages available so that you can use the package manager to get future updates.")
-			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
-			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings.")
-		}
-		displayFooter()
 	}
 }
 
@@ -268,6 +213,61 @@ def prefSettings(params) {
 				}
 			}
 		}
+	}
+}
+
+def prefOptions() {
+	state.remove("mainMenu")
+	
+	if (state.customRepo && customRepo != "" && customRepo != null) {
+		def repoListing = getJSONFile(customRepo)
+		if (repoListing == null) {
+			clearStateSettings(true)
+			return buildErrorPage("Error loading repository", "The repository file you specified could not be loaded.")
+		} 
+		else {
+			installedRepositories << customRepo
+			if (state.customRepositories == null)
+				state.customRepositories = [:]
+			if (state.customRepositories[customRepo] == null)
+				state.customRepositories << ["${customRepo}":repoListing.author]
+		}
+	}
+	if (state.firstRun == true)
+		return prefPkgMatchUp()
+	else {
+		clearStateSettings(true)
+		initialize()
+		installHPMManifest()
+	}
+	if (installedRepositories == null) {
+		logDebug "No installed repositories, grabbing all"
+		def repos = [] as List
+		state.repositoryListingJSON.repositories.each { it -> repos << it.location }
+		app.updateSetting("installedRepositories", repos)
+	}
+
+	state.categoriesAndTags = loadSettingsFile()
+	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
+        displayHeader()
+		if (state.newRepoMessage != "") {
+			section {
+				paragraph state.newRepoMessage
+				state.newRepoMessage = ""
+			}
+		}
+		section {
+			paragraph "What would you like to do?"
+			href(name: "prefPkgInstall", title: "Install", required: false, page: "prefPkgInstall", description: "Install a new package.")
+			href(name: "prefPkgModify", title: "Modify", required: false, page: "prefPkgModify", description: "Modify an already installed package. This allows you to add or remove optional components.")
+			href(name: "prefPkgRepair", title: "Repair", required: false, page: "prefPkgRepair", description: "Repair a package by ensuring all of the newest versions are installed in case something went wrong.")
+			href(name: "prefPkgUninstall", title: "Uninstall", required: false, page: "prefPkgUninstall", description: "Uninstall packages.")
+            href(name: "prefPkgUpdate", title: "Update", required: false, page: "prefPkgUpdate", description: "Check for updates for your installed packages.")
+			href(name: "prefPkgMatchUp", title: "Match Up", required: false, page: "prefPkgMatchUp", description: "Match up the apps and drivers you already have installed with packages available so that you can use the package manager to get future updates.")
+			href(name: "prefPkgView", title: "View Apps and Drivers", required: false, page: "prefPkgView", description: "View the apps and drivers that are managed by packages.")
+			href(name: "prefSettings", title: "Package Manager Settings", required: false, page: "prefSettings", params: [force:true], description: "Modify Hubitat Package Manager Settings.")
+		}
+		displayFooter()
 	}
 }
 
@@ -3678,6 +3678,7 @@ def redirectToAppInstall(appID) {
 	paragraph "<script>\$('button[name=\"_action_next\"]').prop(\"onclick\", null).off(\"click\").click(function() { location.href = \"/installedapp/create/${appID}\";})</script>"
 }
 
+// Helper method used to upgrade HPM and migrate state data to newer formats.
 def performMigrations() {
 	if (!state.repositoryListingJSON) {
 		logDebug "Storing repository listing in state"
