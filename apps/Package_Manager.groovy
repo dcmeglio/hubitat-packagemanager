@@ -142,6 +142,7 @@ def prefOptions() {
 				state.customRepositories << ["${customRepo}":repoListing.author]
 		}
 	}
+
 	if (state.firstRun == true)
 		return prefPkgMatchUp()
 	else {
@@ -159,6 +160,13 @@ def prefOptions() {
 	state.categoriesAndTags = loadSettingsFile()
 	return dynamicPage(name: "prefOptions", title: "", install: true, uninstall: false) {
 		displayHeader()
+
+		if (isHubSecurityEnabled() && !hpmSecurity) {
+			section {
+				paragraph "<b>Hub Security appears to be enabled but is not configured in HPM. Please configure hub security."
+			}
+		}
+
 		if (state.newRepoMessage != "") {
 			section {
 				paragraph state.newRepoMessage
@@ -181,6 +189,7 @@ def prefOptions() {
 }
 
 def prefSettings(params) {
+	def showSettingsForSecurityEnablement = false
 	state.newRepoMessage = ""
 	if (state.manifests == null)
 		state.manifests = [:]
@@ -190,8 +199,12 @@ def prefSettings(params) {
 		state.newRepoMessage = "<b>One or more new repositories have been added. You may want to do a Match Up to ensure all of your packages are detected.</b>"
 	}
 
+	if (isHubSecurityEnabled() && !hpmSecurity) {
+		showSettingsForSecurityEnablement = true
+	}
+
 	installHPMManifest()
-	if (app.getInstallationState() == "COMPLETE" && params?.force != true) 
+	if (app.getInstallationState() == "COMPLETE" && params?.force != true && !showSettingsForSecurityEnablement) 
 		return prefOptions()
 	else {
 		def showInstall = app.getInstallationState() == "INCOMPLETE"
@@ -199,7 +212,11 @@ def prefSettings(params) {
 			state.firstRun = true
 		return dynamicPage(name: "prefSettings", title: "", nextPage: "prefOptions", install: showInstall, uninstall: false) {
 			displayHeader()
+			
 			section ("Hub Security") {
+				if (showSettingsForSecurityEnablement) {
+					paragraph "<b>Hub Security appears to be enabled on your hub but is not enabled within HPM. Please configure hub security below</b>"
+				}
 				paragraph "In order to automatically install apps and drivers you must specify your Hubitat admin username and password if Hub Security is enabled."
 				input "hpmSecurity", "bool", title: "Hub Security Enabled", submitOnChange: true
 				if (hpmSecurity)
@@ -2396,6 +2413,13 @@ def checkForUpdates() {
 		}
 		
 		if (autoUpdates) {
+			if (isHubSecurityEnabled() && !hpmSecurity) {
+				log.error "Hub security is enabled but not configured in Package Manager. Updates cannot be installed."
+				if (notifyOnFailure) {
+					notifyUpdateFailureDevices*.deviceNotification(buildNotification("Hub security is enabled but not configured in Package Manager. Updates cannot be installed."))
+				}
+				return
+			}
 			if (!autoUpdateAll)
 				packagesWithUpdates.removeIf { it -> !appsToAutoUpdate.contains(it)}
 			if (packagesWithUpdates?.size() > 0) {
@@ -2442,7 +2466,7 @@ def checkForUpdates() {
 					}
 					if (notifyOnFailure) {
 						for (failed in result.failed) {
-							notifyUpdateSuccessDevices*.deviceNotification(buildNotification("${state.manifests[failed].packageName} failed to update"))
+							notifyUpdateFailureDevices*.deviceNotification(buildNotification("${state.manifests[failed].packageName} failed to update"))
 						}
 					}
 				}
@@ -2857,6 +2881,21 @@ def newVersionAvailable(item, installedItem) {
 		return result
 	}
 	return result
+}
+
+def isHubSecurityEnabled() {
+	def hubSecurityEnabled = false
+	httpGet(
+		[
+			uri: "http://127.0.0.1:8080",
+			path: "/hub/edit",
+			textParser: true
+		]
+	) {
+		resp ->
+		hubSecurityEnabled = resp.data?.text?.contains("<title>Login</title>")
+	}
+	return hubSecurityEnabled
 }
 
 def login() {
