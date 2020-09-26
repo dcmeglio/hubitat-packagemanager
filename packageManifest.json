@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.2.1",
 	"author": "Dominick Meglio",
-	"version": "1.6.0",
+	"version": "1.7.0",
 	"dateReleased": "2020-07-28",
-	"releaseNotes": "Added an option to receive individual notifications of each package updated. Added support for installing files into file manager.",
+	"releaseNotes": "If hub security is enabled on the hub but not HPM, you are now given an error instead of failing silently.\nRearranged the main menu so Update is right under Install.\n",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
