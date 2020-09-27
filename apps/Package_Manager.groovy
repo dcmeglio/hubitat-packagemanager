@@ -239,13 +239,16 @@ def prefSettings(params) {
 					input "notifyUpdatesAvailable", "bool", title: "Notify me when updates are available", submitOnChange: true
 					if (notifyUpdatesAvailable)
 						input "notifyDevices", "capability.notification", title: "Devices to notify", required: true, multiple: true
-						
-					input "autoUpdates", "bool", title: "Install updates automatically", submitOnChange: true
-					if (autoUpdates) {
-						input "autoUpdateAll", "bool", title: "Automatically install all available updates", submitOnChange: true
-						if (!autoUpdateAll) {
+					
+					input "autoUpdateMode", "enum", title: "Install updates automatically when", options: ["Always":"Always", "Never":"Never", "Include":"Only those I list", "Exclude":"All packages except the ones I list"], submitOnChange: true
+					if (autoUpdateMode != "Never") {
+						if (autoUpdateMode == "Include") {
 							def listOfPackages = getInstalledPackages(false)
 							input "appsToAutoUpdate", "enum", title: "Which packages should be automatically updated?", required: true, multiple: true, options:listOfPackages
+						}
+						else if (autoUpdateMode == "Exclude") {
+							def listOfPackages = getInstalledPackages(false)
+							input "appsNotToAutoUpdate", "enum", title: "Which packages should NOT be automatically updated?", required: true, multiple: true, options:listOfPackages
 						}
 						
 						input "notifyOnSuccess", "bool", title: "Notify me if automatic updates are successful", submitOnChange: true
@@ -2413,7 +2416,7 @@ def checkForUpdates() {
 			notifyDevices*.deviceNotification(buildNotification("Hubitat Package updates are available"))
 		}
 		
-		if (autoUpdates) {
+		if (autoUpdateMode != "Never") {
 			if (isHubSecurityEnabled() && !hpmSecurity) {
 				log.error "Hub security is enabled but not configured in Package Manager. Updates cannot be installed."
 				if (notifyOnFailure) {
@@ -2421,9 +2424,12 @@ def checkForUpdates() {
 				}
 				return
 			}
+			log.debug appsNotToAutoUpdate
 
-			if (!autoUpdateAll)
-				packagesWithUpdates.removeIf { hasUpdate -> !appsToAutoUpdate.find { it == hasUpdate}}
+			if (autoUpdateMode == "Include")
+				packagesWithUpdates.removeIf { hasUpdate -> appsToAutoUpdate.find { it == hasUpdate} == null }
+			else if (autoUpdateMode == "Exclude")
+				packagesWithUpdates.removeIf { hasUpdate -> appsNotToAutoUpdate.find { it == hasUpdate} != null }
 
 			if (packagesWithUpdates?.size() > 0) {
 				app.updateSetting("pkgsToUpdate", packagesWithUpdates)
@@ -3746,6 +3752,17 @@ def performMigrations() {
 			}
 		}
 		state.manifestsHavePayPalAndGitHub = true
+	}
+	if (!settings.autoUpdateMode) {
+		autoUpdateMode = "Never"
+		logDebug "Migrating auto updater mode"
+		if (autoUpdates && autoUpdateAll)
+			autoUpdateMode = "Always"
+		else if (autoUpdates && !autoUpdateAll)
+			autoUpdateMode = "Include"
+
+		app.updateSetting("autoUpdateMode", [type: "enum", value: autoUpdateMode])
+		logDebug "Converted update mode to ${autoUpdateMode}"
 	}
 }
 
