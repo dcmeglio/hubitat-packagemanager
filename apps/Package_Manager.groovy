@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.6.0
+ *  Hubitat Package Manager v1.7.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -2421,8 +2421,10 @@ def checkForUpdates() {
 				}
 				return
 			}
+
 			if (!autoUpdateAll)
-				packagesWithUpdates.removeIf { it -> !appsToAutoUpdate.contains(it)}
+				packagesWithUpdates.removeIf { hasUpdate -> !appsToAutoUpdate.find { it == hasUpdate}}
+
 			if (packagesWithUpdates?.size() > 0) {
 				app.updateSetting("pkgsToUpdate", packagesWithUpdates)
 				pkgsToUpdate = packagesWithUpdates
