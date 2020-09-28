@@ -471,6 +471,7 @@ def renderTags(pkgList) {
 def renderSortBy() {
 	input "pkgSortBy", "enum", title: "Sort By", options: ["Author", "Name"], submitOnChange: true, defaultValue: "Name"
 }
+
 def prefInstallChoices(params) {
 	if (state.mainMenu)
 		return prefOptions()
@@ -607,7 +608,7 @@ def prefInstallVerify() {
 		return prefOptions()
 	logDebug "prefInstallVerify"
 	
-		atomicState.backgroundActionInProgress = null
+	atomicState.backgroundActionInProgress = null
 	statusMessage = ""        
 	errorOccurred = null
 	errorTitle = null
@@ -1949,7 +1950,6 @@ def performUpdates(runInBackground) {
 						setBackgroundStatusMessage("Upgrading ${app.name}")
 						if (upgradeApp(app.heID, appFiles[location])) {
 							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
-							completedActions["appUpgrades"] << [id:app.heID,source:sourceCode]
 							if (app.oauth)
 								enableOAuth(app.heID)
 						}
@@ -2003,7 +2003,7 @@ def performUpdates(runInBackground) {
 								else {
 									resultData.success = false
 									resultData.failed << pkg
-									resu;tData.message = rollback("Failed to install app ${location}", runInBackground)
+									resultData.message = rollback("Failed to install app ${location}", runInBackground)
 									return resultData
 								}
 							}
