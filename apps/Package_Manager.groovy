@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.7.0
+ *  Hubitat Package Manager v1.8.0
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -2149,7 +2149,7 @@ def prefPkgMatchUpVerify() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "Performing Package Matching"
 		atomicState.backgroundActionInProgress = true
-		runInMillis(1,performPackageMatchup)
+		performPackageMatchup()
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgMatchUpVerify", title: "", nextPage: "prefPkgMatchUpVerify", install: false, uninstall: false, refreshInterval: 2) {
@@ -2199,12 +2199,51 @@ def prefPkgMatchUpVerify() {
 def performPackageMatchup() {
 	if (!login())
 		return triggerError("Error logging in to hub", "An error occurred logging into the hub. Please verify your Hub Security username and password.", false)
-		
+
+	updateRepositoryListing()
+
+	getMultipleJSONFiles(installedRepositories, performMatchupRepoRefreshComplete, performMatchupRepoRefreshStatus)
+}
+
+def performMatchupRepoRefreshComplete(results, data) {
+	def packageManifests = []
+	def packageNames = [:]
+	setBackgroundStatusMessage("Downloading package manifests")
+	def manifestData = [:]
+	for (uri in results.keySet()) {
+		def repoName = getRepoName(uri)
+		def result = results[uri]
+		def fileContents = result.result
+		if (fileContents == null) {
+			log.warn "Error refreshing ${repoName}"
+			setBackgroundStatusMessage("Failed to refresh ${repoName}")
+			continue
+		}
+
+		for (pkg in fileContents.packages) {
+			packageManifests << pkg.location
+			packageNames[pkg.location] = pkg.name
+			manifestData[pkg.location] = [url: uri, githubUrl: fileContents.githubUrl, payPalUrl: fileContents.payPalUrl]
+		}
+	}
+	getMultipleJSONFiles(packageManifests, performMatchupManifestsComplete, performMatchupManifestsStatus, [manifestData: manifestData, packageNames: packageNames])
+}
+
+def performMatchupRepoRefreshStatus(uri, data) {
+	def repoName = getRepoName(uri)
+	setBackgroundStatusMessage("Refreshed ${repoName}")
+}
+
+def performMatchupManifestsStatus(uri, data) {
+
+}
+
+def performMatchupManifestsComplete(results, data) {
 	setBackgroundStatusMessage("Retrieving list of installed apps")
 	def allInstalledApps = getAppList()
 	setBackgroundStatusMessage("Retrieving list of installed drivers")
 	def allInstalledDrivers = getDriverList()
-	
+
 	// Filter out anything that already has an associated package
 	for (manifest in state.manifests) {
 		for (app in manifest.value.apps) {
@@ -2216,36 +2255,26 @@ def performPackageMatchup() {
 				allInstalledDrivers.removeIf {it -> it.id == driver.heID}
 		}
 	}
-	updateRepositoryListing()
 	
 	def packagesToMatchAgainst = []
-	for (repo in installedRepositories) {
-		def repoName = getRepoName(repo)
-		setBackgroundStatusMessage("Refreshing ${repoName}")
-		def fileContents = getJSONFile(repo)
-		if (!fileContents) {
-			log.warn "Error refreshing ${repoName}"
-			setBackgroundStatusMessage("Failed to refresh ${repoName}")
-			continue
-		}
-		for (pkg in fileContents.packages) {
-			def manifestContents = getJSONFile(pkg.location)
-			if (manifestContents == null)
-				log.error "Found a bad manifest ${pkg.location}. Please notify the package developer."
-			else {
-				def pkgDetails = [
-					gitHubUrl: fileContents.gitHubUrl,
-					payPalUrl: fileContents.payPalUrl,
-					repository: repoName,
-					name: pkg.name,
-					location: pkg.location,
-					manifest: manifestContents
-				]
-				packagesToMatchAgainst << pkgDetails
-			}
+	for (uri in results.keySet()) {
+		def result = results[uri]
+		def manifestContents = result.result
+		if (manifestContents == null)
+			log.error "Found a bad manifest ${pkg.location}. Please notify the package developer."
+		else {
+			def pkgDetails = [
+				gitHubUrl: data.manifestData[uri].gitHubUrl,
+				payPalUrl: data.manifestData[uri].payPalUrl,
+				repository: getRepoName(data.manifestData[uri].url),
+				name: data.packageNames[uri],
+				location: uri,
+				manifest: manifestContents
+			]
+			packagesToMatchAgainst << pkgDetails
 		}
 	}
-	
+
 	packagesMatchingInstalledEntries = []
 	setBackgroundStatusMessage("Matching up packages")
 	for (pkg in packagesToMatchAgainst) {
@@ -2717,11 +2746,11 @@ def getJSONFile(uri) {
 }
 
 def getMultipleJSONFilesCallback(resp, data) {
+	def result = null
+	"${data.statusCallback}"(data.uri, data.uri)
 	synchronized (downloadQueue) {
 		downloadQueue[data.batchid].results[data.uri].result = resp
 		downloadQueue[data.batchid].results[data.uri].complete = true
-		
-		"${data.statusCallback}"(data.uri, data.uri)
 		
 		def queuedItem = downloadQueue[data.batchid].results.find { k, v -> v.queued == true}
 		if (queuedItem != null) {
@@ -2730,9 +2759,11 @@ def getMultipleJSONFilesCallback(resp, data) {
 			getJSONFileAsync(queuedItem.key, getMultipleJSONFilesCallback, [batchid: data.batchid, uri: queuedItem.key, callback: itemValue.callback, statusCallback: itemValue.statusCallback, data: itemValue.data])
 		}
 		else if (downloadQueue[data.batchid].results.count { k, v -> v.complete == true} == downloadQueue[data.batchid].totalBatchSize) {
-			"${data.callback}"(downloadQueue[data.batchid].results, data.data)
+			result = downloadQueue[data.batchid].results
 		}
 	}
+	if (result != null)
+		"${data.callback}"(result, data.data)
 }
 
 def getMultipleJSONFiles(uriList, completeCallback, statusCallback, data = null) {
