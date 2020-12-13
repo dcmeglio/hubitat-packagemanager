@@ -426,7 +426,7 @@ def prefPkgInstallRepository() {
 	if (atomicState.backgroundActionInProgress == null) {
 		logDebug "prefPkgInstallRepository"
 		atomicState.backgroundActionInProgress = true
-		runInMillis(1,performRepositoryRefresh)
+		getMultipleJSONFiles(installedRepositories, performRepositoryRefreshComplete, performRepositoryRefreshStatus)
 	}
 	if (atomicState.backgroundActionInProgress != false) {
 		return dynamicPage(name: "prefPkgInstallRepository", title: "", nextPage: "prefPkgInstallRepository", install: false, uninstall: false, refreshInterval: 2) {
@@ -567,19 +567,27 @@ def getRepoName(location) {
 	return state.repositoryListingJSON.repositories.find { it -> it.location == location }?.name
 }
 
-def performRepositoryRefresh() {
+def performRepositoryRefreshStatus(uri, data)
+{
+	def repoName = getRepoName(uri)
+	setBackgroundStatusMessage("Refreshed ${repoName}")
+}
+
+def performRepositoryRefreshComplete(results, data)
+{
 	allPackages = []
 	categories = []
 
-	for (repo in installedRepositories) {
-		def repoName = getRepoName(repo)
-		setBackgroundStatusMessage("Refreshing ${repoName}")
-		def fileContents = getJSONFile(repo)
-		if (!fileContents) {
+	for (uri in results.keySet()) {
+		def repoName = getRepoName(uri)
+		def result = results[uri]
+		def fileContents = result.result
+		if (fileContents == null) {
 			log.warn "Error refreshing ${repoName}"
 			setBackgroundStatusMessage("Failed to refresh ${repoName}")
 			continue
 		}
+
 		for (pkg in fileContents.packages) {
 			def pkgDetails = [
 				repository: repoName,
@@ -597,6 +605,7 @@ def performRepositoryRefresh() {
 				categories << pkgDetails.category
 		}
 	}
+
 	allPackages = allPackages.sort()
 	categories = categories.sort()
 	atomicState.backgroundActionInProgress = false
