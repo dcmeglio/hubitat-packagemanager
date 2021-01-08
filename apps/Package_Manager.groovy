@@ -352,7 +352,7 @@ def prefInstallRepositorySearchResults() {
 			"variables": [
 				"searchQuery": pkgSearch
 			],
-			"query": 'query Search($searchQuery: String) { repositories { author, packages (search: $searchQuery) {name, description, location, tags}}}'
+			"query": 'query Search($searchQuery: String) { repositories { author, gitHubUrl, payPalUrl, packages (search: $searchQuery) {name, description, location, tags}}}'
 		]
 	]
 	
@@ -365,7 +365,7 @@ def prefInstallRepositorySearchResults() {
 		def searchResults = []
 		for (repo in result.data.repositories) {
 			for (packageItem in repo.packages) {
-				packageItem << [author: repo.author, installed: state.manifests[packageItem.location] != null]
+				packageItem << [author: repo.author, gitHubUrl: repo.gitHubUrl, payPalUrl: repo.payPalUrl, installed: state.manifests[packageItem.location] != null]
 				searchResults << packageItem
 			}
 		}
@@ -520,6 +520,7 @@ def prefInstallChoices(params) {
 		if (installMode == "search" || (installMode == "repository" && params != null)) { 
 			pkgInstall = params.location
 			app.updateSetting("pkgInstall", params.location)
+			state.payPalUrl = params.payPalUrl
 		}
 		if(pkgInstall) {
 			if (state.manifests == null)
@@ -600,6 +601,7 @@ def performRepositoryRefreshComplete(results, data)
 				category: pkg.category,
 				tags: pkg.tags
 			]
+			
 			allPackages << pkgDetails
 			if (!categories.contains(pkgDetails.category))
 				categories << pkgDetails.category
@@ -697,6 +699,8 @@ def performInstallation() {
 		manifest.beta = false
 
 	state.manifests[pkgInstall] = manifest
+	state.manifests[pkgInstall].payPalUrl = state.payPalUrl
+	state.payPalUrl = null
 	minimizeStoredManifests()
 	
 	// Download all files first to reduce the chances of a network error
@@ -2938,7 +2942,8 @@ def isHubSecurityEnabled() {
 		[
 			uri: "http://127.0.0.1:8080",
 			path: "/hub/edit",
-			textParser: true
+			textParser: true,
+			ignoreSSLIssues: true
 		]
 	) {
 		resp ->
@@ -2967,10 +2972,12 @@ def login() {
 						password: hpmPassword,
 						submit: "Login"
 					],
-					textParser: true
+					textParser: true,
+					ignoreSSLIssues: true
 				]
 			)
 			{ resp ->
+			log.debug resp.data?.text
 				if (resp.data?.text?.contains("The login information you supplied was incorrect."))
 					result = false
 				else {
@@ -3007,12 +3014,13 @@ def installApp(appCode) {
 				create: "",
 				source: appCode
 			],
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		def result
 		httpPost(params) { resp ->
 			if (resp.headers."Location" != null) {
-				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/app/editor/","")
+				result = resp.headers."Location".replaceAll("https?://127.0.0.1:(?:8080|8443)/app/editor/","")
 				getAppSource(result)
 				completedActions["appInstalls"] << result
 			}
@@ -3042,7 +3050,8 @@ def upgradeApp(id,appCode) {
 				version: getAppVersion(id),
 				source: appCode
 			],
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		def result = false
 		httpPost(params) { resp ->
@@ -3070,7 +3079,8 @@ def uninstallApp(id) {
 				"_action_delete": "Delete"
 			],
 			timeout: 300,
-			textParser: true
+			textParser: true,
+			ignoreSSLIssues: true
 		]
 		def result = true
 		httpPost(params) { resp ->
@@ -3107,7 +3117,8 @@ def enableOAuth(id) {
 			displayLink: "",
 			_action_update: "Update"
 		],
-		timeout: 300
+		timeout: 300,
+		ignoreSSLIssues: true
 	]
 	def result = false
 	httpPost(params) { resp ->
@@ -3129,7 +3140,8 @@ def getAppSource(id) {
 			query: [
 				id: id
 			],
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		def result
 		httpGet(params) { resp ->
@@ -3153,7 +3165,8 @@ def getAppVersion(id) {
 		],
 		query: [
 			id: id
-		]
+		],
+		ignoreSSLIssues: true
 	]
 	def result
 	httpGet(params) { resp ->
@@ -3179,19 +3192,20 @@ def installDriver(driverCode) {
 				create: "",
 				source: driverCode
 			],
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		def result
 		httpPost(params) { resp ->
 			if (resp.headers."Location" != null) {
-				result = resp.headers."Location".replaceAll("http://127.0.0.1:8080/driver/editor/","")
+				result = resp.headers."Location".replaceAll("https?://127.0.0.1:(?:8080|8443)/driver/editor/","")
 				completedActions["driverInstalls"] << result
 			}
 			else
 				result = null
 		}
 		return result
-	}
+	} 
 	catch (e) {
 		log.error "Error installing driver: ${e}"
 	}
@@ -3213,7 +3227,8 @@ def upgradeDriver(id,appCode) {
 				version: getDriverVersion(id),
 				source: appCode
 			],
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		def result = false
 		httpPost(params) { resp ->
@@ -3242,7 +3257,8 @@ def uninstallDriver(id) {
 				"_action_delete": "Delete"
 			],
 			timeout: 300,
-			textParser: true
+			textParser: true,
+			ignoreSSLIssues: true
 		]
 		def result = true
 		httpPost(params) { resp ->
@@ -3277,7 +3293,8 @@ def getDriverSource(id) {
 			query: [
 				id: id
 			],
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		def result
 		httpGet(params) { resp ->
@@ -3301,7 +3318,8 @@ def getDriverVersion(id) {
 		],
 		query: [
 			id: id
-		]
+		],
+		ignoreSSLIssues: true
 	]
 	def result
 	httpGet(params) { resp ->
@@ -3335,7 +3353,8 @@ Content-Disposition: form-data; name="folder"
 
 
 ------WebKitFormBoundaryDtoO2QfPwfhTjOuS--""",
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		httpPost(params) { resp ->
 			
@@ -3363,7 +3382,8 @@ def uninstallFile(id, fileName) {
 				name: "${id}-${fileName}",
 				type: "file"
 			),
-			timeout: 300
+			timeout: 300,
+			ignoreSSLIssues: true
 		]
 		httpPost(params) { resp ->
 
@@ -3728,7 +3748,7 @@ def renderPackageButton(pkg, i) {
 		badges += '<i class="material-icons material-icons-outlined" title="Cloud" style="font-size: 14pt">cloud</i>'
 	if (hasTag(pkg, "LAN"))
 		badges += '<i class="material-icons material-icons-outlined" title="LAN" style="font-size: 14pt">wifi</i>'
-	href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description + " <div>"+nonIconTagsHtml(pkg) +"<div style='text-align: right;display: table-cell;width: 100%;'>" + badges + "</div></div>", params: [location: pkg.location]) 
+	href(name: "prefPkgInstallPackage${i}", title: "${pkg.name} by ${pkg.author}", required: false, page: "prefInstallChoices", description: pkg.description + " <div>"+nonIconTagsHtml(pkg) +"<div style='text-align: right;display: table-cell;width: 100%;'>" + badges + "</div></div>", params: [location: pkg.location, payPalUrl: pkg.payPalUrl]) 
 	if (pkg.installed)
 		disableHrefButton("prefPkgInstallPackage${i}")
 	else
