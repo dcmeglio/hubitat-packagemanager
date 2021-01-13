@@ -2115,6 +2115,7 @@ def performUpdates(runInBackground) {
 		else {
 		}
 	}
+	state.updatesNotified = false
 	logDebug "Updates complete"
 	if (runInBackground != true)
 		atomicState.backgroundActionInProgress = false
@@ -2454,6 +2455,7 @@ def checkForUpdates() {
 		allUpgradeCount = packagesWithUpdates?.size()?: 0
 		
 		if (notifyUpdatesAvailable && !state.updatesNotified) {
+			logDebug "Sending update notification"
 			state.updatesNotified = true
 			notifyDevices*.deviceNotification(buildNotification("Hubitat Package updates are available"))
 		}
@@ -2466,7 +2468,6 @@ def checkForUpdates() {
 				}
 				return
 			}
-			log.debug appsNotToAutoUpdate
 
 			if (autoUpdateMode == "Include")
 				packagesWithUpdates.removeIf { hasUpdate -> appsToAutoUpdate.find { it == hasUpdate} == null }
