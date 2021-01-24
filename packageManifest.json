@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.2.1",
 	"author": "Dominick Meglio",
-	"version": "1.7.0",
-	"dateReleased": "2020-10-06",
-	"releaseNotes": "If hub security is enabled on the hub but not HPM, you are now given an error instead of failing silently.\nRearranged the main menu so Update is right under Install.\nFixed a bug where if you chose to only update specific packages, no updates would occur.\nAdded an exclude mode to the autoupdater to list packages that should not be updated.\n",
+	"version": "1.8.0",
+	"dateReleased": "2021-01-23",
+	"releaseNotes": "Bug fixes for donation link not displaying.\nStarted working on performance improvements moving code to asynchronous calls.\nImprovements to prevent missed update notifications.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
