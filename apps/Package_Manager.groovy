@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.8.0
+ *  Hubitat Package Manager v1.8.1
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -2266,7 +2266,7 @@ def performMatchupManifestsComplete(results, data) {
 		def result = results[uri]
 		def manifestContents = result.result
 		if (manifestContents == null)
-			log.error "Found a bad manifest ${pkg.location}. Please notify the package developer."
+			log.error "Found a bad manifest ${uri}. Please notify the package developer."
 		else {
 			def pkgDetails = [
 				gitHubUrl: data.manifestData[uri].gitHubUrl,
