@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.8.1
+ *  Hubitat Package Manager v1.8.2
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -2220,12 +2220,16 @@ def performMatchupRepoRefreshComplete(results, data) {
 		def result = results[uri]
 		def fileContents = result.result
 		if (fileContents == null) {
-			log.warn "Error refreshing ${repoName}"
-			setBackgroundStatusMessage("Failed to refresh ${repoName}")
+			log.warn "Error refreshing ${repoName ?: uri}"
+			setBackgroundStatusMessage("Failed to refresh ${repoName ?: uri}")
 			continue
 		}
 
 		for (pkg in fileContents.packages) {
+			if (packageManifests.contains(pkg.location)) {
+				log.warn "Duplicate manifest found ${pkg.location}, skipping"
+				continue
+			}
 			packageManifests << pkg.location
 			packageNames[pkg.location] = pkg.name
 			manifestData[pkg.location] = [url: uri, githubUrl: fileContents.githubUrl, payPalUrl: fileContents.payPalUrl]
