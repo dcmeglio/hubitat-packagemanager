@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.2.1",
 	"author": "Dominick Meglio",
-	"version": "1.8.1",
-	"dateReleased": "2021-03-20",
-	"releaseNotes": "Fixed an issue that could cause a bad package manifest to cause a match up to fail.",
+	"version": "1.8.2",
+	"dateReleased": "2021-05-25",
+	"releaseNotes": "Fixed an issue that could cause a match up to hang if two packages pointed to the same manifest filename.",
 	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
