@@ -13,6 +13,7 @@ definition(
 	name: "Hubitat Package Manager",
 	namespace: "dcm.hpm",
 	author: "Dominick Meglio",
+	importUrl: "https://raw.githubusercontent.com/dcmeglio/hubitat-packagemanager/master/apps/Package_Manager.groovy",
 	description: "Provides a utility to maintain the apps and drivers on your Hubitat making both installation and updates easier",
 	category: "My Apps",
 	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
