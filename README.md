@@ -1,6 +1,17 @@
 # hubitat-packagemanager
 The Hubitat Package Manager provides tools to install, uninstall, and upgrade 3rd party packages to add to your Hubitat Elevation environment. This document includes information for how to use this app as well as how to contribute your own packages.
 
+
+## Getting Started
+To install the Hubitat Package Manager
+- Open your Hubitat page
+- Under "Developer Code" in the left nav, click "Apps Code" -> "New App" (Button)
+- Copy and paste the following code:
+https://raw.githubusercontent.com/dcmeglio/hubitat-packagemanager/master/apps/Package_Manager.groovy
+- Click "Save"
+- Click "Apps" in the left nav -> "Add User Apps" (top-right button) -> "Hubitat Package Manager"
+
+
 ## Initial Configuration
 If you use Hub Security you will need to provide the admin username and password of your hub. If you do not, simply turn the toggle off.
 
