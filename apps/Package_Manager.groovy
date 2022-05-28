@@ -1,6 +1,6 @@
 /**
  *
- *  Hubitat Package Manager v1.8.2
+ *  Hubitat Package Manager v1.8.3
  *
  *  Copyright 2020 Dominick Meglio
  *
@@ -18,7 +18,7 @@ definition(
 	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
 	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
 	iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-	documentationLink: "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
+	documentationLink: "https://hubitatpackagemanager.hubitatcommunity.com/",
 	singleInstance: true)
 
 preferences {
@@ -54,8 +54,8 @@ preferences {
 import groovy.transform.Field
 import java.util.regex.Matcher
 
-@Field static String repositoryListing = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json"
-@Field static String settingsFile = "https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/settings.json"
+@Field static String repositoryListing = "https://raw.githubusercontent.com/HubitatCommunity/hubitat-packagerepositories/master/repositories.json"
+@Field static String settingsFile      = "https://raw.githubusercontent.com/HubitatCommunity/hubitat-packagerepositories/master/settings.json"
 @Field static String searchApiUrl = "https://hubitatpackagemanager.azurewebsites.net/graphql"
 @Field static List categories = [] 
 @Field static List allPackages = []
@@ -64,7 +64,6 @@ import java.util.regex.Matcher
 
 @Field static def downloadQueue = [:]
 @Field static Integer maxDownloadQueueSize = 10
-
 
 @Field static String installAction = ""
 @Field static String installMode = ""
@@ -3509,6 +3508,8 @@ def installHPMManifest() {
 		createLocationVariable("hpmVersion")
 		sendLocationEvent(name: "hpmVersion", value: "0")
 	}
+	// there should be one HPM Manifest. Remove all and add one back in.
+	state.manifests = state.manifests.findAll { it.value.packageName != "Hubitat Package Manager" }
 	if (state.manifests[state.repositoryListingJSON.hpm.location] == null) {
 		logDebug "Grabbing list of installed apps"
 		if (!login()) {
