@@ -2,16 +2,16 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.2.1",
 	"author": "Dominick Meglio",
-	"version": "1.8.2",
-	"dateReleased": "2021-05-25",
-	"releaseNotes": "Fixed an issue that could cause a match up to hang if two packages pointed to the same manifest filename.",
-	"documentationLink": "https://github.com/dcmeglio/hubitat-packagemanager/blob/master/README.md",
+	"version": "1.8.3",
+	"dateReleased": "2022-05-26",
+	"releaseNotes": "Migrated HPM to HubitatCommunity",
+	"documentationLink": "https://hubitatpackagemanager.hubitatcommunity.com/",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
 		{
 			"id" : "2e6b1674-a87b-41a8-bd65-5cbbf78d842e",
 			"name": "Hubitat Package Manager",
-			"location": "https://raw.githubusercontent.com/dcmeglio/hubitat-packagemanager/master/apps/Package_Manager.groovy",
+			"location": "https://raw.githubusercontent.com/HubitatCommunity/hubitatpackagemanager/main/apps/Package_Manager.groovy",
 			"required": true
 		}
 	]
