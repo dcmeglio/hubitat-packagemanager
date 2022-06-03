@@ -2,9 +2,9 @@
 	"packageName": "Hubitat Package Manager",
 	"minimumHEVersion": "2.2.1",
 	"author": "Dominick Meglio",
-	"version": "1.8.3",
-	"dateReleased": "2022-05-26",
-	"releaseNotes": "Migrated HPM to HubitatCommunity",
+	"version": "1.8.4",
+	"dateReleased": "2022-06-03",
+	"releaseNotes": "Added Fast Search\n -- added txtEnable to silence log.info messages\n -- use httpS for Fast Search",
 	"documentationLink": "https://hubitatpackagemanager.hubitatcommunity.com/",
 	"communityLink": "https://community.hubitat.com/t/beta-hubitat-package-manager/38016",
 	"apps" : [
