@@ -125,7 +125,7 @@ The repository file is another JSON file that can be created using the [Hubitat 
 Categories are being phased out in favor of tags. A complete list of categories and tags can be viewed at https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/settings.json If you need additional tags because the existing ones don't cover your use, submit a PR against this file.
 
 #### Publishing your Repository
-When your repository file is ready to go, submit a Pull Request against https://raw.githubusercontent.com/dcmeglio/hubitat-packagerepositories/master/repositories.json which includes the _name_ of your new repository and the _location_ of your repository JSON. Once your pull request is merged it will become available to all Hubitat Package Manager users.
+When your repository file is ready to go, submit a Pull Request against https://raw.githubusercontent.com/HubitatCommunity/hubitat-packagerepositories/master/repositories.json which includes the _name_ of your new repository and the _location_ of your repository JSON. Once your pull request is merged it will become available to all Hubitat Package Manager users.
 
 #### Example
 ```json
