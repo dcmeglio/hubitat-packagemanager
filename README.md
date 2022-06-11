@@ -1,14 +1,20 @@
-# hubitat-packagemanager
+# The contents of this repo have moved to 
+https://github.com/HubitatCommunity/hubitatpackagemanager
+## and all Pull Requests, etc. should be made there. This repo remains for historical reasons only.
+## Please don't use any of the links below, since they are not maintained.
+
+
+##### hubitat-packagemanager
 The Hubitat Package Manager provides tools to install, uninstall, and upgrade 3rd party packages to add to your Hubitat Elevation environment. This document includes information for how to use this app as well as how to contribute your own packages.
 
-## Initial Configuration
+##### Initial Configuration
 If you use Hub Security you will need to provide the admin username and password of your hub. If you do not, simply turn the toggle off.
 
 ![Initial Setup Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MainPage1.PNG)
 
 The app will then perform a _Match Up_. This will automatically search all of the apps and drivers you have installed and compare it to a list of those that have packages. If a match is found, the package manager will begin monitoring that package for updates.
 
-## Installing a Package
+##### Installing a Package
 There are three ways to install a package. You can _Search by Keywords_, _Browse by Tags_, or if you know the URL of a package you can choose _From a URL_
 
 ![Install Options Screen](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Install1.PNG)
@@ -25,41 +31,41 @@ If the package includes any optional apps or drivers you will be prompted to cho
 
 After you make your decisions you'll be prompted to confirm by clicking _Next_. Once you do the package will be installed.
 
-## Modifying a Package
+##### Modifying a Package
 If you need to add or remove an optional component from a package later, choose the _Modify_ option. You will be asked to choose which package you'd like to modify.
 
 ![Modify Optional Addons](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Modify1.PNG)
 
 Choose the components to add and/or remove. You will then be asked to confirm before the changes are made. Click _Next_ to complete the changes.
 
-## Repairing a Package
+##### Repairing a Package
 If you accidentally manually uninstall an app or driver that is part of a package, or if an update goes wrong for some reason, use a repair to fix the package. Simply specify the package to repair. Click _Next_ to reinstall the package. Note that this will also update it to the latest version.
 
 ![Modify Optional Addons](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Repair1.PNG)
 
 Choose the components to add and/or remove. You will then be asked to confirm before the changes are made. Click _Next_ to complete the changes.
 
-## Uninstalling a Package
+##### Uninstalling a Package
 If you'd like to uninstall a package, choose the _Uninstall_ option. Choose the package to uninstall and click _Next_. You will then be prompted to confirm the components that are to be removed. Note, this option cannot be undone. If you would like the package to be reinstalled you must do so by running an _Install_ and you will have to reconfigure all of your settings again.
 
 ![Uninstall Package](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Uninstall1.PNG)
 
-## Updating Packages
+##### Updating Packages
 When an author releases a new version of a package, to install it, choose the _Update_ option. If updates are available, choose the packages you wish to update and then click _Next_. You will then be able to confirm your selections and install the updates by clicking _Next_.
 
 ![Update Package](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Update1.PNG)
 
-## Match Up
+##### Match Up
 A Match Up will search through all of the apps and drivers you have installed on your hub and attempt to figure out if there are packages available that match these apps and drivers. This isn't an exact science. The Hubitat Package Manager will show you matches it found and allow you to confirm those that appear to be correct. This will then cause the selected apps and drivers to be monitored for updates. Unfortunately, the package manager has no way to know what version of a previously installed app or driver was installed. You have two options. You can either tell the package manager to assume that the version you have installed is up to date, or not. If it is set to assume it is up to date, you will not receive update notifications until the next time a new version is available. If it is set to not be up to date, you can immediately perform an _Update_ which will ensure the latest version is installed.
 
 ![Match Up Packages](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/MatchUp1.PNG)
 
-## View Apps and Drivers
+##### View Apps and Drivers
 This will show you all of the apps and drivers you have installed that are currently being managed by the Hubitat Package Manager. You should _Not_ uninstall or update these apps and drivers manually. You should only modify them using the Hubitat Package Manager. If provided by the developer, you'll also find links to the documentation for a package as well as a link to the community discussion thread for the package.
 
 ![View Apps and Drivers](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/ViewApps1.PNG)
 
-## Package Manager Settings
+##### Package Manager Settings
 This is where you can control the settings of the Hubitat Package Manager. You can modify your Hub Security settings, choose which repositories you want to use, enable or disable debug logging, manage updates, and also _Add a Custom Repository_.
 
 ![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings1.PNG)
@@ -67,10 +73,10 @@ This is where you can control the settings of the Hubitat Package Manager. You c
 The updates include several options. You can configure when the update checker runs (Note: you should not run the checker during the Hubitat maintenance window at 3am), whether or not you'd like to receive a notification if updates are available, and if the updates should be installed automatically. You can choose to install all updates automatically, or just for certain packages. Additionally you can receive a push notification when an update either succeeds or fails.
 ![Package Manager Settings](https://github.com/dcmeglio/hubitat-packagemanager/raw/master/imgs/Settings2.PNG)
 
-## Developer Information
+##### Developer Information
 The information below is intended for app and driver developers who wish to use Hubitat Package Manager to provide your apps and drivers. Two things are needed, each package must provide a _manifest_ and you must provide a _repository_ that lists your packages. A small little tool called [Hubitat Package Manager Tools](https://github.com/dcmeglio/hubitat-packagemanagertools/releases) has been provided which assists in the creation of these files. On Windows simply run the `hpm.exe --help` to get help, and on MacOS and Linux run `./hpm --help`
 
-### Package Manifest 
+##### Package Manifest 
 The package manifest is a JSON file that lists the apps and drivers that are part of your package. A recommendation when versioning your packages is to use [SemVer](https://semver.org/). This will ensure that the Hubitat Package Manager is always able to detect updates properly. You can either version the entire package as a whole, or each app/driver can be versioned, but don't mix-and-match within the same package.
  
 #### Example
